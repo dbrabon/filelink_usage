@@ -6,13 +6,13 @@ The `filelink_usage` module scans all text fields across your Drupal 10/11 site�
 
 ## Features
 
-- 🔍 Scans all text fields (plain and formatted) for file links
-- 🌐 Supports multilingual content (per-translation scanning)
-- 🧠 Detects links in absolute (`https://yoursite.com/sites/default/files/...`) or relative format (`/sites/default/files/...`)
-- 🗃️ Updates `file_usage` records to prevent accidental deletion of in-use files
-- ⏱️ Daily cron-based cache and batch scanning
-- 💾 Save hooks update usage in real time on content creation or update
-- ⚙️ Configuration page to select which entity types and field types to include
+- 🔍 Scans `text_long` and `text_with_summary` fields for links to files
+- 🧠 Detects links in absolute (`https://yoursite.com/sites/default/files/...`) or relative (`/sites/default/files/...`) format
+- 🗃️ Updates `file_usage` records so referenced files are preserved
+- ⏱️ Automatically scans during Drupal cron runs
+- 💾 Save hooks keep file usage in sync on node create, update, and delete
+- 💻 `drush filelink_usage:scan` command to run the scanner manually
+- ⚙️ Configuration form with optional verbose logging (available once the settings form is implemented)
 
 ## Use Cases
 
