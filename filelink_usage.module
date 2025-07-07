@@ -43,10 +43,12 @@ function filelink_usage_rescan_node(NodeInterface $node) {
           }
         }
 
-        $database->insert('filelink_usage_matches')
-          ->fields([
+        $database->merge('filelink_usage_matches')
+          ->key([
             'nid' => $node->id(),
             'link' => $match,
+          ])
+          ->fields([
             'timestamp' => time(),
           ])
           ->execute();
