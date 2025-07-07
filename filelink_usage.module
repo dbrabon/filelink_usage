@@ -18,6 +18,35 @@ function filelink_usage_rescan_node(NodeInterface $node) {
   $file_usage = \Drupal::service('file.usage');
   $database = \Drupal::database();
 
+  // Remove any existing matches and file usage entries for this node so we
+  // can record a fresh set of links.
+  $links = $database->select('filelink_usage_matches', 'f')
+    ->fields('f', ['link'])
+    ->condition('nid', $node->id())
+    ->execute()
+    ->fetchCol();
+
+  foreach ($links as $link) {
+    $uri = $link;
+    if (preg_match('#https?://[^/]+(/sites/default/files/.*)#i', $uri, $m)) {
+      $uri = $m[1];
+    }
+    if (strpos($uri, '/sites/default/files/') === 0) {
+      $uri = 'public://' . substr($uri, strlen('/sites/default/files/'));
+    }
+
+    $file_storage = $entity_type_manager->getStorage('file');
+    $files = $file_storage->loadByProperties(['uri' => $uri]);
+    $file = $files ? reset($files) : NULL;
+    if ($file) {
+      $file_usage->delete($file, 'filelink_usage', 'node', $node->id());
+    }
+  }
+
+  $database->delete('filelink_usage_matches')
+    ->condition('nid', $node->id())
+    ->execute();
+
   foreach ($node->getFields() as $field) {
     $type = $field->getFieldDefinition()->getType();
     if ($type === 'text_long' || $type === 'text_with_summary') {
