@@ -4,6 +4,7 @@ namespace Drupal\filelink_usage;
 
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\Cache\Cache;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\node\NodeInterface;
 use Psr\Log\LoggerInterface;
@@ -60,6 +61,7 @@ class FileLinkUsageScanner {
         $file = $files ? reset($files) : NULL;
         if ($file) {
           $this->fileUsage->delete($file, 'filelink_usage', 'node', $node->id());
+          Cache::invalidateTags(['file:' . $file->id()]);
         }
       }
 
@@ -94,6 +96,7 @@ class FileLinkUsageScanner {
                   // Remove entries from other modules to avoid duplicate rows.
                   if ($module_name !== 'filelink_usage') {
                     $this->fileUsage->delete($file, $module_name, 'node', $node->id());
+                    Cache::invalidateTags(['file:' . $file->id()]);
                   }
                   $usage_exists = TRUE;
                 }
@@ -101,6 +104,7 @@ class FileLinkUsageScanner {
 
               if (!$usage_exists) {
                 $this->fileUsage->add($file, 'filelink_usage', 'node', $node->id());
+                Cache::invalidateTags(['file:' . $file->id()]);
               }
             }
 
