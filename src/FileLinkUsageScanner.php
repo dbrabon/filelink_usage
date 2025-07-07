@@ -59,10 +59,12 @@ class FileLinkUsageScanner {
               }
             }
 
-            $this->database->insert('filelink_usage_matches')
-              ->fields([
+            $this->database->merge('filelink_usage_matches')
+              ->key([
                 'nid' => $node->id(),
                 'link' => $match,
+              ])
+              ->fields([
                 'timestamp' => time(),
               ])
               ->execute();

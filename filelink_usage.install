@@ -32,6 +32,9 @@ function filelink_usage_schema() {
       'nid' => ['nid'],
       'link' => ['link'],
     ],
+    'unique keys' => [
+      'nid_link' => ['nid', 'link'],
+    ],
   ];
   return $schema;
 }
@@ -47,4 +50,14 @@ function filelink_usage_uninstall() {
 
   // Remove module configuration if present.
   \Drupal::configFactory()->getEditable('filelink_usage.settings')->delete();
+}
+
+/**
+ * Add a unique key on nid and link.
+ */
+function filelink_usage_update_8001() {
+  $schema = \Drupal::database()->schema();
+  if ($schema->tableExists('filelink_usage_matches') && !$schema->indexExists('filelink_usage_matches', 'nid_link')) {
+    $schema->addUniqueKey('filelink_usage_matches', 'nid_link', ['nid', 'link']);
+  }
 }
