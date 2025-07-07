@@ -5,6 +5,10 @@ services:
     tags:
       - { name: default }
 
+  filelink_usage.manager:
+    class: Drupal\filelink_usage\FileLinkUsageManager
+    arguments: ['@database', '@config.factory', '@time', '@filelink_usage.scanner', '@file.usage', '@entity_type.manager']
+
   logger.channel.filelink_usage:
     class: Drupal\Core\Logger\LoggerChannel
     factory: 'logger.factory:get'

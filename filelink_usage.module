@@ -7,46 +7,14 @@ use Drupal\node\NodeInterface;
  * Implements hook_cron().
  */
 function filelink_usage_cron() {
-  $config = \Drupal::configFactory()->getEditable('filelink_usage.settings');
-  $frequency = $config->get('scan_frequency');
-  $last_scan = (int) $config->get('last_scan');
-  $intervals = [
-    'hourly' => 3600,
-    'daily' => 86400,
-    'weekly' => 604800,
-  ];
-  $interval = $intervals[$frequency] ?? 86400;
-  $now = \Drupal::time()->getRequestTime();
-
-  if ($interval && $last_scan + $interval > $now) {
-    return;
-  }
-
-  $database = \Drupal::database();
-  // Rescan nodes that haven't been scanned within the configured interval.
-  $threshold = $interval ? $now - $interval : 0;
-  $query = $database->select('node_field_data', 'n');
-  $query->leftJoin('filelink_usage_scan_status', 's', 'n.nid = s.nid');
-  $query->fields('n', ['nid']);
-  $or = $query->orConditionGroup()
-    ->isNull('s.scanned')
-    ->condition('s.scanned', $threshold, '<');
-  $nids = $query->condition($or)->execute()->fetchCol();
-
-  if ($nids) {
-    \Drupal::service('filelink_usage.scanner')->scan($nids);
-  }
-
-  $config->set('last_scan', $now)->save();
+  \Drupal::service('filelink_usage.manager')->runCron();
 }
 
 /**
  * Mark a node as needing a rescan.
  */
 function filelink_usage_mark_for_rescan(NodeInterface $node) {
-  \Drupal::database()->delete('filelink_usage_scan_status')
-    ->condition('nid', $node->id())
-    ->execute();
+  \Drupal::service('filelink_usage.manager')->markForRescan($node);
 }
 
 /**
@@ -54,7 +22,7 @@ function filelink_usage_mark_for_rescan(NodeInterface $node) {
  */
 function filelink_usage_entity_insert(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
-    filelink_usage_mark_for_rescan($entity);
+    \Drupal::service('filelink_usage.manager')->markForRescan($entity);
   }
 }
 
@@ -63,7 +31,7 @@ function filelink_usage_entity_insert(EntityInterface $entity) {
  */
 function filelink_usage_entity_update(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
-    filelink_usage_mark_for_rescan($entity);
+    \Drupal::service('filelink_usage.manager')->markForRescan($entity);
   }
 }
 
@@ -72,38 +40,6 @@ function filelink_usage_entity_update(EntityInterface $entity) {
  */
 function filelink_usage_entity_delete(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
-    $database = \Drupal::database();
-    $file_usage = \Drupal::service('file.usage');
-    $entity_type_manager = \Drupal::entityTypeManager();
-
-    $links = $database->select('filelink_usage_matches', 'f')
-      ->fields('f', ['link'])
-      ->condition('nid', $entity->id())
-      ->execute()
-      ->fetchCol();
-
-    foreach ($links as $link) {
-      $uri = $link;
-      if (preg_match('#https?://[^/]+(/sites/default/files/.*)#i', $uri, $m)) {
-        $uri = $m[1];
-      }
-      if (strpos($uri, '/sites/default/files/') === 0) {
-        $uri = 'public://' . substr($uri, strlen('/sites/default/files/'));
-      }
-      $file_storage = $entity_type_manager->getStorage('file');
-      $files = $file_storage->loadByProperties(['uri' => $uri]);
-      $file = $files ? reset($files) : NULL;
-      if ($file) {
-        $file_usage->delete($file, 'filelink_usage', 'node', $entity->id());
-      }
-    }
-
-    $database->delete('filelink_usage_matches')
-      ->condition('nid', $entity->id())
-      ->execute();
-
-    $database->delete('filelink_usage_scan_status')
-      ->condition('nid', $entity->id())
-      ->execute();
+    \Drupal::service('filelink_usage.manager')->cleanupNode($entity);
   }
 }
