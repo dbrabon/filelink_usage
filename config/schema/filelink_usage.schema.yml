@@ -5,3 +5,9 @@ filelink_usage.settings:
     verbose_logging:
       type: boolean
       label: 'Verbose logging'
+    scan_frequency:
+      type: string
+      label: 'Cron scan frequency'
+    last_scan:
+      type: integer
+      label: 'Timestamp of last cron scan'

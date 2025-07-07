@@ -104,3 +104,17 @@ function filelink_usage_update_8002() {
     ]);
   }
 }
+
+/**
+ * Add scan frequency and last scan settings.
+ */
+function filelink_usage_update_8003() {
+  $config = \Drupal::configFactory()->getEditable('filelink_usage.settings');
+  if ($config->get('scan_frequency') === NULL) {
+    $config->set('scan_frequency', 'daily');
+  }
+  if ($config->get('last_scan') === NULL) {
+    $config->set('last_scan', 0);
+  }
+  $config->save();
+}
