@@ -4,6 +4,7 @@ namespace Drupal\filelink_usage\Form;
 
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal;
 
 /**
  * Configure File Link Usage settings.
@@ -37,6 +38,15 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('Write detailed entries to the File Link Usage log channel.'),
     ];
 
+    $form['actions']['purge'] = [
+      '#type' => 'submit',
+      '#value' => $this->t('Purge saved file links'),
+      '#submit' => ['::purgeFileLinkMatches'],
+      '#limit_validation_errors' => [],
+      '#button_type' => 'danger',
+      '#weight' => 10,
+    ];
+
     return parent::buildForm($form, $form_state);
   }
 
@@ -49,6 +59,15 @@ class SettingsForm extends ConfigFormBase {
       ->save();
 
     parent::submitForm($form, $form_state);
+  }
+
+  /**
+   * Purges saved file link matches from the database.
+   */
+  public function purgeFileLinkMatches(array &$form, FormStateInterface $form_state) {
+    Drupal::database()->truncate('filelink_usage_matches')->execute();
+    $this->messenger()->addMessage($this->t('All saved file links have been purged.'));
+    $form_state->setRebuild();
   }
 
 }
