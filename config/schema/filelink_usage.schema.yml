@@ -1,0 +1,7 @@
+filelink_usage.settings:
+  type: config_object
+  label: 'File Link Usage settings'
+  mapping:
+    verbose_logging:
+      type: boolean
+      label: 'Verbose logging'

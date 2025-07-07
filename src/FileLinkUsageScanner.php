@@ -6,6 +6,7 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Psr\Log\LoggerInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
 
 class FileLinkUsageScanner {
 
@@ -13,16 +14,19 @@ class FileLinkUsageScanner {
   protected Connection $database;
   protected FileUsageInterface $fileUsage;
   protected LoggerInterface $logger;
+  protected ConfigFactoryInterface $configFactory;
 
-  public function __construct(EntityTypeManagerInterface $entityTypeManager, Connection $database, FileUsageInterface $fileUsage, LoggerInterface $logger) {
+  public function __construct(EntityTypeManagerInterface $entityTypeManager, Connection $database, FileUsageInterface $fileUsage, LoggerInterface $logger, ConfigFactoryInterface $configFactory) {
     $this->entityTypeManager = $entityTypeManager;
     $this->database = $database;
     $this->fileUsage = $fileUsage;
     $this->logger = $logger;
+    $this->configFactory = $configFactory;
   }
 
   public function scan(): array {
     $results = [];
+    $verbose = (bool) $this->configFactory->get('filelink_usage.settings')->get('verbose_logging');
 
     $storage = $this->entityTypeManager->getStorage('node');
     $nids = $storage->getQuery()
@@ -67,6 +71,13 @@ class FileLinkUsageScanner {
               'nid' => $node->id(),
               'link' => $match,
             ];
+
+            if ($verbose) {
+              $this->logger->notice('Found link @link in node @nid', [
+                '@link' => $match,
+                '@nid' => $node->id(),
+              ]);
+            }
           }
         }
       }
