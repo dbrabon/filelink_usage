@@ -1,0 +1,37 @@
+<?php
+
+/**
+ * Implements hook_schema().
+ */
+function filelink_usage_schema() {
+  $schema['filelink_usage_matches'] = [
+    'description' => 'Stores detected file links in node text fields.',
+    'fields' => [
+      'id' => [
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'nid' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'link' => [
+        'type' => 'varchar',
+        'length' => 1024,
+        'not null' => TRUE,
+      ],
+      'timestamp' => [
+        'type' => 'int',
+        'not null' => TRUE,
+      ],
+    ],
+    'primary key' => ['id'],
+    'indexes' => [
+      'nid' => ['nid'],
+      'link' => ['link'],
+    ],
+  ];
+  return $schema;
+}
