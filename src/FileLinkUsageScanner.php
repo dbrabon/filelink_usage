@@ -90,7 +90,7 @@ class FileLinkUsageScanner {
             }
 
             $this->database->merge('filelink_usage_matches')
-              ->key([
+              ->keys([
                 'nid' => $node->id(),
                 'link' => $match,
               ])
@@ -115,10 +115,10 @@ class FileLinkUsageScanner {
       }
 
       // Record successful scan time.
-      $this->database->merge('filelink_usage_scan_status')
-        ->key(['nid' => $node->id()])
-        ->fields(['scanned' => time()])
-        ->execute();
+        $this->database->merge('filelink_usage_scan_status')
+          ->key('nid', $node->id())
+          ->fields(['scanned' => time()])
+          ->execute();
     }
 
     $this->logger->info('Scanned @count nodes for file links.', ['@count' => count($nodes)]);
