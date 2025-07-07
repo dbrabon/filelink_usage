@@ -38,6 +38,18 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('Write detailed entries to the File Link Usage log channel.'),
     ];
 
+    $form['scan_frequency'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Cron scan frequency'),
+      '#options' => [
+        'hourly' => $this->t('Hourly'),
+        'daily' => $this->t('Daily'),
+        'weekly' => $this->t('Weekly'),
+      ],
+      '#default_value' => $config->get('scan_frequency'),
+      '#description' => $this->t('How often cron should scan for file links.'),
+    ];
+
     $form['actions']['purge'] = [
       '#type' => 'submit',
       '#value' => $this->t('Purge saved file links'),
@@ -56,6 +68,7 @@ class SettingsForm extends ConfigFormBase {
   public function submitForm(array &$form, FormStateInterface $form_state) {
     $this->configFactory->getEditable('filelink_usage.settings')
       ->set('verbose_logging', $form_state->getValue('verbose_logging'))
+      ->set('scan_frequency', $form_state->getValue('scan_frequency'))
       ->save();
 
     parent::submitForm($form, $form_state);

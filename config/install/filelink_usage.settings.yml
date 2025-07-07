@@ -1,1 +1,3 @@
 verbose_logging: true
+scan_frequency: daily
+last_scan: 0

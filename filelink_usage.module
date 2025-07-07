@@ -7,8 +7,23 @@ use Drupal\node\NodeInterface;
  * Implements hook_cron().
  */
 function filelink_usage_cron() {
+  $config = \Drupal::configFactory()->getEditable('filelink_usage.settings');
+  $frequency = $config->get('scan_frequency');
+  $last_scan = (int) $config->get('last_scan');
+  $intervals = [
+    'hourly' => 3600,
+    'daily' => 86400,
+    'weekly' => 604800,
+  ];
+  $interval = $intervals[$frequency] ?? 86400;
+  $now = \Drupal::time()->getRequestTime();
+
+  if ($interval && $last_scan + $interval > $now) {
+    return;
+  }
+
   $database = \Drupal::database();
-  $threshold = \Drupal::time()->getRequestTime() - 86400;
+  $threshold = $now - 86400;
   $query = $database->select('node_field_data', 'n');
   $query->leftJoin('filelink_usage_scan_status', 's', 'n.nid = s.nid');
   $query->fields('n', ['nid']);
@@ -20,6 +35,8 @@ function filelink_usage_cron() {
   if ($nids) {
     \Drupal::service('filelink_usage.scanner')->scan($nids);
   }
+
+  $config->set('last_scan', $now)->save();
 }
 
 /**
