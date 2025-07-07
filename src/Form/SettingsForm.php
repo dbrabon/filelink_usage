@@ -42,6 +42,7 @@ class SettingsForm extends ConfigFormBase {
       '#type' => 'select',
       '#title' => $this->t('Cron scan frequency'),
       '#options' => [
+        'every' => $this->t('Every cron run'),
         'hourly' => $this->t('Hourly'),
         'daily' => $this->t('Daily'),
         'weekly' => $this->t('Weekly'),
