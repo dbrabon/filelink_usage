@@ -12,7 +12,7 @@ The `filelink_usage` module scans all text fields across your Drupal 10 or 11 si
 - ⏱️ Automatically scans during Drupal cron runs
 - 💾 Save hooks keep file usage in sync on node create, update, and delete
 - 💻 `drush filelink_usage:scan` command to run the scanner manually
-- ⚙️ Configuration form with optional verbose logging (available once the settings form is implemented)
+- ⚙️ Configuration form with verbose logging enabled by default
 
 ## Use Cases
 
