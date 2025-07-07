@@ -1,0 +1,7 @@
+filelink_usage.settings:
+  path: '/admin/config/media/filelink-usage'
+  defaults:
+    _form: '\Drupal\filelink_usage\Form\SettingsForm'
+    _title: 'File Link Usage'
+  requirements:
+    _permission: 'administer site configuration'

@@ -1,0 +1,6 @@
+filelink_usage.settings:
+  title: 'File Link Usage'
+  description: 'Configure File Link Usage settings.'
+  route_name: filelink_usage.settings
+  parent: system.admin_config_media
+  weight: 100
