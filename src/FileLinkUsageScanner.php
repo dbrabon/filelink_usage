@@ -85,7 +85,20 @@ class FileLinkUsageScanner {
 
             if ($file) {
               $usage = $this->fileUsage->listUsage($file);
-              if (empty($usage['filelink_usage']['node'][$node->id()])) {
+
+              // Check if any module already recorded usage for this node.
+              $usage_exists = FALSE;
+              foreach ($usage as $module_name => $module_usage) {
+                if (!empty($module_usage['node'][$node->id()])) {
+                  // Remove entries from other modules to avoid duplicate rows.
+                  if ($module_name !== 'filelink_usage') {
+                    $this->fileUsage->delete($file, $module_name, 'node', $node->id());
+                  }
+                  $usage_exists = TRUE;
+                }
+              }
+
+              if (!$usage_exists) {
                 $this->fileUsage->add($file, 'filelink_usage', 'node', $node->id());
               }
             }
