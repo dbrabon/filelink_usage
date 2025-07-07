@@ -35,3 +35,16 @@ function filelink_usage_schema() {
   ];
   return $schema;
 }
+
+/**
+ * Implements hook_uninstall().
+ */
+function filelink_usage_uninstall() {
+  $schema = \Drupal::database()->schema();
+  if ($schema->tableExists('filelink_usage_matches')) {
+    $schema->dropTable('filelink_usage_matches');
+  }
+
+  // Remove module configuration if present.
+  \Drupal::configFactory()->getEditable('filelink_usage.settings')->delete();
+}
