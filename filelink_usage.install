@@ -77,6 +77,25 @@ function filelink_usage_uninstall() {
 function filelink_usage_update_8001() {
   $schema = \Drupal::database()->schema();
   if ($schema->tableExists('filelink_usage_matches') && !$schema->indexExists('filelink_usage_matches', 'nid_link')) {
+    // Remove duplicate rows to avoid constraint violations when adding the
+    // unique key. We keep the earliest inserted record for each nid/link pair.
+    $connection = \Drupal::database();
+    $query = $connection->select('filelink_usage_matches', 'f')
+      ->fields('f', ['id', 'nid', 'link'])
+      ->orderBy('id', 'ASC');
+    $seen = [];
+    foreach ($query->execute() as $row) {
+      $key = $row->nid . '|' . $row->link;
+      if (isset($seen[$key])) {
+        $connection->delete('filelink_usage_matches')
+          ->condition('id', $row->id)
+          ->execute();
+      }
+      else {
+        $seen[$key] = TRUE;
+      }
+    }
+
     $schema->addUniqueKey('filelink_usage_matches', 'nid_link', ['nid', 'link']);
   }
 }
