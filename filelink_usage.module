@@ -22,7 +22,7 @@ function filelink_usage_mark_for_rescan(NodeInterface $node) {
  */
 function filelink_usage_entity_insert(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
-    \Drupal::service('filelink_usage.manager')->markForRescan($entity);
+    \Drupal::service('filelink_usage.scanner')->scanNode($entity);
   }
 }
 
@@ -31,7 +31,7 @@ function filelink_usage_entity_insert(EntityInterface $entity) {
  */
 function filelink_usage_entity_update(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
-    \Drupal::service('filelink_usage.manager')->markForRescan($entity);
+    \Drupal::service('filelink_usage.scanner')->scanNode($entity);
   }
 }
 
