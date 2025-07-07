@@ -1,0 +1,6 @@
+services:
+  filelink_usage.commands:
+    class: Drupal\filelink_usage\Commands\FileLinkUsageCommands
+    arguments: ['@filelink_usage.scanner']
+    tags:
+      - { name: drush.command }

@@ -6,8 +6,4 @@ package: Custom
 dependencies:
   - file
   - node
-drush.services:
-  filelink_usage:
-    commands:
-      - Drupal\filelink_usage\Commands\FileLinkUsageCommands
 
