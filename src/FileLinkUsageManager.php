@@ -4,6 +4,7 @@ namespace Drupal\filelink_usage;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\Cache\Cache;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -95,6 +96,7 @@ class FileLinkUsageManager {
       $file = $files ? reset($files) : NULL;
       if ($file) {
         $this->fileUsage->delete($file, 'filelink_usage', 'node', $node->id());
+        Cache::invalidateTags(['file:' . $file->id()]);
       }
     }
 
