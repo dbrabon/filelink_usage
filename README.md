@@ -18,7 +18,7 @@ The `filelink_usage` module scans all text fields across your Drupal 10 or 11 si
 
 ## Configuration
 
-Set the **Cron scan frequency** (hourly, daily, or weekly) on the module's
+Set the **Cron scan frequency** (hourly, daily, weekly, or every cron run) on the module's
 settings page. This value determines how often cron runs the scanner and how
 long a node can go before it is rescanned.
 

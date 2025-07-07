@@ -35,6 +35,7 @@ class FileLinkUsageManager {
     $frequency = $config->get('scan_frequency');
     $last_scan = (int) $config->get('last_scan');
     $intervals = [
+      'every' => 0,
       'hourly' => 3600,
       'daily' => 86400,
       'weekly' => 604800,
@@ -46,7 +47,7 @@ class FileLinkUsageManager {
       return;
     }
 
-    $threshold = $interval ? $now - $interval : 0;
+    $threshold = $interval ? $now - $interval : $now;
     $query = $this->database->select('node_field_data', 'n');
     $query->leftJoin('filelink_usage_scan_status', 's', 'n.nid = s.nid');
     $query->fields('n', ['nid']);

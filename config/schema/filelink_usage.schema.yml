@@ -9,6 +9,7 @@ filelink_usage.settings:
       type: string
       label: 'Cron scan frequency'
       allowed_values:
+        - every
         - hourly
         - daily
         - weekly
