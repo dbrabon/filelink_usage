@@ -7,7 +7,7 @@ use Drupal\node\NodeInterface;
  * Implements hook_cron().
  */
 function filelink_usage_cron() {
-  \Drupal::service('filelink_usage.manager')->runCron();
+  \Drupal::service('filelink_usage.cron')->run();
 }
 
 /**
