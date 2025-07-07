@@ -5,6 +5,7 @@ namespace Drupal\filelink_usage;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\file\FileUsage\FileUsageInterface;
+use Drupal\node\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 
@@ -123,6 +124,13 @@ class FileLinkUsageScanner {
 
     $this->logger->info('Scanned @count nodes for file links.', ['@count' => count($nodes)]);
     return $results;
+  }
+
+  /**
+   * Scan a single node for file links and update usage.
+   */
+  public function scanNode(NodeInterface $node): array {
+    return $this->scan([$node->id()]);
   }
 
 }
