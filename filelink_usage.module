@@ -23,7 +23,8 @@ function filelink_usage_cron() {
   }
 
   $database = \Drupal::database();
-  $threshold = $now - 86400;
+  // Rescan nodes that haven't been scanned within the configured interval.
+  $threshold = $interval ? $now - $interval : 0;
   $query = $database->select('node_field_data', 'n');
   $query->leftJoin('filelink_usage_scan_status', 's', 'n.nid = s.nid');
   $query->fields('n', ['nid']);
