@@ -38,12 +38,13 @@ class FileLinkUsageScanner {
 
     $nodes = $storage->loadMultiple($nids);
     foreach ($nodes as $node) {
-      // Remove old usage records and matches so we can store a fresh set.
+      // Retrieve existing matches so we know which links are new.
       $links = $this->database->select('filelink_usage_matches', 'f')
         ->fields('f', ['link'])
         ->condition('nid', $node->id())
         ->execute()
         ->fetchCol();
+      $existing_links = array_flip($links);
 
       foreach ($links as $link) {
         $uri = $link;
@@ -103,6 +104,8 @@ class FileLinkUsageScanner {
               }
             }
 
+            $is_new_link = !isset($existing_links[$match]);
+
             $this->database->merge('filelink_usage_matches')
               ->keys([
                 'nid' => $node->id(),
@@ -113,12 +116,15 @@ class FileLinkUsageScanner {
               ])
               ->execute();
 
+            // Track this link so repeated matches in the same scan are not logged.
+            $existing_links[$match] = TRUE;
+
             $results[] = [
               'nid' => $node->id(),
               'link' => $match,
             ];
 
-            if ($verbose) {
+            if ($verbose && $is_new_link) {
               $this->logger->notice('Found link @link in node @nid', [
                 '@link' => $match,
                 '@nid' => $node->id(),
