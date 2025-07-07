@@ -7,7 +7,7 @@ services:
 
   filelink_usage.manager:
     class: Drupal\filelink_usage\FileLinkUsageManager
-    arguments: ['@database', '@config.factory', '@time', '@filelink_usage.scanner', '@file.usage', '@entity_type.manager']
+    arguments: ['@database', '@config.factory', '@datetime.time', '@filelink_usage.scanner', '@file.usage', '@entity_type.manager']
 
   filelink_usage.cron:
     class: Drupal\filelink_usage\FileLinkUsageCron
