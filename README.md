@@ -23,3 +23,7 @@ The `filelink_usage` module scans all text fields across your Drupal 10/11 siteâ
 ## Status
 
 This module is under active development. Contributions and feedback are welcome.
+
+## License
+
+This project is licensed under the [GNU General Public License v2 or later](LICENSE).
