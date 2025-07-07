@@ -7,7 +7,19 @@ use Drupal\node\NodeInterface;
  * Implements hook_cron().
  */
 function filelink_usage_cron() {
-  \Drupal::service('filelink_usage.scanner')->scan();
+  $database = \Drupal::database();
+  $threshold = \Drupal::time()->getRequestTime() - 86400;
+  $query = $database->select('node_field_data', 'n');
+  $query->leftJoin('filelink_usage_scan_status', 's', 'n.nid = s.nid');
+  $query->fields('n', ['nid']);
+  $or = $query->orConditionGroup()
+    ->isNull('s.scanned')
+    ->condition('s.scanned', $threshold, '<');
+  $nids = $query->condition($or)->execute()->fetchCol();
+
+  if ($nids) {
+    \Drupal::service('filelink_usage.scanner')->scan($nids);
+  }
 }
 
 /**
@@ -87,11 +99,20 @@ function filelink_usage_rescan_node(NodeInterface $node) {
 }
 
 /**
+ * Mark a node as needing a rescan.
+ */
+function filelink_usage_mark_for_rescan(NodeInterface $node) {
+  \Drupal::database()->delete('filelink_usage_scan_status')
+    ->condition('nid', $node->id())
+    ->execute();
+}
+
+/**
  * Implements hook_entity_insert().
  */
 function filelink_usage_entity_insert(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
-    filelink_usage_rescan_node($entity);
+    filelink_usage_mark_for_rescan($entity);
   }
 }
 
@@ -100,7 +121,7 @@ function filelink_usage_entity_insert(EntityInterface $entity) {
  */
 function filelink_usage_entity_update(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
-    filelink_usage_rescan_node($entity);
+    filelink_usage_mark_for_rescan($entity);
   }
 }
 
@@ -136,6 +157,10 @@ function filelink_usage_entity_delete(EntityInterface $entity) {
     }
 
     $database->delete('filelink_usage_matches')
+      ->condition('nid', $entity->id())
+      ->execute();
+
+    $database->delete('filelink_usage_scan_status')
       ->condition('nid', $entity->id())
       ->execute();
   }
