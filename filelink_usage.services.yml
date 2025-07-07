@@ -1,0 +1,11 @@
+services:
+  filelink_usage.scanner:
+    class: Drupal\filelink_usage\FileLinkUsageScanner
+    arguments: ['@entity_type.manager', '@database', '@file.usage', '@logger.channel.filelink_usage']
+    tags:
+      - { name: default }
+
+  logger.channel.filelink_usage:
+    class: Drupal\Core\Logger\LoggerChannel
+    factory: 'logger.factory:get'
+    arguments: ['filelink_usage']

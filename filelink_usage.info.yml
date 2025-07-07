@@ -1,0 +1,8 @@
+name: 'File Link Usage'
+type: module
+description: 'Scans text fields for file links and tracks usage based on managed files.'
+core_version_requirement: ^10
+package: Custom
+dependencies:
+  - file
+  - node
