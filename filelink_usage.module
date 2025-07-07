@@ -102,7 +102,7 @@ function filelink_usage_rescan_node(NodeInterface $node) {
         }
 
         $database->merge('filelink_usage_matches')
-          ->key([
+          ->keys([
             'nid' => $node->id(),
             'link' => $match,
           ])
