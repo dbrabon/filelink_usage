@@ -51,11 +51,3 @@ class FileLinkUsageScanner {
 
 }
 
-$this->database->insert('filelink_usage_matches')
-  ->fields([
-    'nid' => $node->id(),
-    'link' => $match,
-    'timestamp' => \Drupal::time()->getRequestTime(),
-  ])
-  ->execute();
-
