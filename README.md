@@ -9,11 +9,18 @@ The `filelink_usage` module scans all text fields across your Drupal 10 or 11 si
 - 🔍 Scans `text_long` and `text_with_summary` fields for links to files
 - 🧠 Detects links in absolute (`https://yoursite.com/sites/default/files/...`) or relative (`/sites/default/files/...`) format
 - 🗃️ Updates `file_usage` records so referenced files are preserved
-- ⏱️ Automatically scans during Drupal cron runs
+- ⏱️ Automatically scans during Drupal cron runs respecting the configured scan frequency
 - 💾 Save hooks keep file usage in sync on node create, update, and delete
 - 💻 `drush filelink_usage:scan` command to run the scanner manually
 - ⚙️ Configuration form with verbose logging enabled by default
 - 🧹 Admin UI button to purge stored file link matches
+- 📅 Nodes are re-scanned if their last scan time exceeds the chosen interval
+
+## Configuration
+
+Set the **Cron scan frequency** (hourly, daily, or weekly) on the module's
+settings page. This value determines how often cron runs the scanner and how
+long a node can go before it is rescanned.
 
 ## Use Cases
 

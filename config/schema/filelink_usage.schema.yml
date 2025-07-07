@@ -8,6 +8,10 @@ filelink_usage.settings:
     scan_frequency:
       type: string
       label: 'Cron scan frequency'
+      allowed_values:
+        - hourly
+        - daily
+        - weekly
     last_scan:
       type: integer
       label: 'Timestamp of last cron scan'
