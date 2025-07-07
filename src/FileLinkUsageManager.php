@@ -9,6 +9,7 @@ use Drupal\Component\Datetime\TimeInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\node\NodeInterface;
+use Drupal\file\FileInterface;
 
 class FileLinkUsageManager {
 
@@ -107,6 +108,46 @@ class FileLinkUsageManager {
     $this->database->delete('filelink_usage_scan_status')
       ->condition('nid', $node->id())
       ->execute();
+  }
+
+  /**
+   * Add file usage entries when a file entity is created.
+   */
+  public function addUsageForFile(FileInterface $file): void {
+    $uri = $file->getFileUri();
+    if (strpos($uri, 'public://') !== 0) {
+      return;
+    }
+
+    $relative_path = substr($uri, strlen('public://'));
+    $relative_url = '/sites/default/files/' . $relative_path;
+
+    $query = $this->database->select('filelink_usage_matches', 'f')
+      ->fields('f', ['nid']);
+    $or = $query->orConditionGroup()
+      ->condition('link', $uri)
+      ->condition('link', $relative_url)
+      ->condition('link', '%' . $relative_url, 'LIKE');
+    $nids = $query->condition($or)->execute()->fetchCol();
+
+    if (!$nids) {
+      return;
+    }
+
+    $usage = $this->fileUsage->listUsage($file);
+    $used_nids = [];
+    foreach ($usage as $module_usage) {
+      if (!empty($module_usage['node'])) {
+        $used_nids += $module_usage['node'];
+      }
+    }
+
+    foreach ($nids as $nid) {
+      if (!isset($used_nids[$nid])) {
+        $this->fileUsage->add($file, 'filelink_usage', 'node', $nid);
+        Cache::invalidateTags(['file:' . $file->id()]);
+      }
+    }
   }
 
 }

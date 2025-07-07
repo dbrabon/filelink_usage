@@ -2,6 +2,7 @@
 
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\node\NodeInterface;
+use Drupal\file\FileInterface;
 
 /**
  * Implements hook_cron().
@@ -23,6 +24,9 @@ function filelink_usage_mark_for_rescan(NodeInterface $node) {
 function filelink_usage_entity_insert(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
     \Drupal::service('filelink_usage.scanner')->scanNode($entity);
+  }
+  elseif ($entity instanceof FileInterface) {
+    \Drupal::service('filelink_usage.manager')->addUsageForFile($entity);
   }
 }
 
