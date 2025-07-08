@@ -9,6 +9,7 @@ use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\node\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\filelink_usage\FileLinkUsageNormalizer;
 
 class FileLinkUsageScanner {
 
@@ -17,13 +18,15 @@ class FileLinkUsageScanner {
   protected FileUsageInterface $fileUsage;
   protected LoggerInterface $logger;
   protected ConfigFactoryInterface $configFactory;
+  protected FileLinkUsageNormalizer $normalizer;
 
-  public function __construct(EntityTypeManagerInterface $entityTypeManager, Connection $database, FileUsageInterface $fileUsage, LoggerInterface $logger, ConfigFactoryInterface $configFactory) {
+  public function __construct(EntityTypeManagerInterface $entityTypeManager, Connection $database, FileUsageInterface $fileUsage, LoggerInterface $logger, ConfigFactoryInterface $configFactory, FileLinkUsageNormalizer $normalizer) {
     $this->entityTypeManager = $entityTypeManager;
     $this->database = $database;
     $this->fileUsage = $fileUsage;
     $this->logger = $logger;
     $this->configFactory = $configFactory;
+    $this->normalizer = $normalizer;
   }
 
   public function scan(?array $nids = NULL): array {
@@ -48,13 +51,7 @@ class FileLinkUsageScanner {
       $existing_links = array_flip($links);
 
       foreach ($links as $link) {
-        $uri = $link;
-        if (preg_match('#https?://[^/]+(/sites/default/files/.*)#i', $uri, $m)) {
-          $uri = $m[1];
-        }
-        if (strpos($uri, '/sites/default/files/') === 0) {
-          $uri = 'public://' . substr($uri, strlen('/sites/default/files/'));
-        }
+        $uri = $this->normalizer->normalize($link);
 
         $file_storage = $this->entityTypeManager->getStorage('file');
         $files = $file_storage->loadByProperties(['uri' => $uri]);
@@ -74,13 +71,7 @@ class FileLinkUsageScanner {
           $text = $field->value;
           preg_match_all('/(public:\/\/[^\s"\']+|\/sites\/default\/files\/[^\s"\']+|https?:\/\/[^\/"]+\/sites\/default\/files\/[^\s"\']+)/i', $text, $matches);
           foreach ($matches[0] as $match) {
-            $uri = $match;
-            if (preg_match('#https?://[^/]+(/sites/default/files/.*)#i', $uri, $m)) {
-              $uri = $m[1];
-            }
-            if (strpos($uri, '/sites/default/files/') === 0) {
-              $uri = 'public://' . substr($uri, strlen('/sites/default/files/'));
-            }
+            $uri = $this->normalizer->normalize($match);
 
             $file_storage = $this->entityTypeManager->getStorage('file');
             $files = $file_storage->loadByProperties(['uri' => $uri]);
@@ -108,12 +99,12 @@ class FileLinkUsageScanner {
               }
             }
 
-            $is_new_link = !isset($existing_links[$match]);
+            $is_new_link = !isset($existing_links[$uri]);
 
             $this->database->merge('filelink_usage_matches')
               ->keys([
                 'nid' => $node->id(),
-                'link' => $match,
+                'link' => $uri,
               ])
               ->fields([
                 'timestamp' => time(),
@@ -121,16 +112,16 @@ class FileLinkUsageScanner {
               ->execute();
 
             // Track this link so repeated matches in the same scan are not logged.
-            $existing_links[$match] = TRUE;
+            $existing_links[$uri] = TRUE;
 
             $results[] = [
               'nid' => $node->id(),
-              'link' => $match,
+              'link' => $uri,
             ];
 
             if ($verbose && $is_new_link) {
               $this->logger->notice('Found link @link in node @nid', [
-                '@link' => $match,
+                '@link' => $uri,
                 '@nid' => $node->id(),
               ]);
             }
