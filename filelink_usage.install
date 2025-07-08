@@ -137,3 +137,34 @@ function filelink_usage_update_8003() {
   }
   $config->save();
 }
+
+/**
+ * Normalize existing link records.
+ */
+function filelink_usage_update_8004() {
+  $connection = \Drupal::database();
+  /** @var \Drupal\filelink_usage\FileLinkUsageNormalizer $normalizer */
+  $normalizer = \Drupal::service('filelink_usage.normalizer');
+
+  $query = $connection->select('filelink_usage_matches', 'f')
+    ->fields('f', ['id', 'nid', 'link'])
+    ->orderBy('id', 'ASC');
+  $seen = [];
+  foreach ($query->execute() as $row) {
+    $normalized = $normalizer->normalize($row->link);
+    $key = $row->nid . '|' . $normalized;
+    if (isset($seen[$key])) {
+      $connection->delete('filelink_usage_matches')
+        ->condition('id', $row->id)
+        ->execute();
+      continue;
+    }
+    $seen[$key] = TRUE;
+    if ($normalized !== $row->link) {
+      $connection->update('filelink_usage_matches')
+        ->fields(['link' => $normalized])
+        ->condition('id', $row->id)
+        ->execute();
+    }
+  }
+}

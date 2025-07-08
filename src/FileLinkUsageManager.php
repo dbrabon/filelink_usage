@@ -10,6 +10,7 @@ use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\node\NodeInterface;
 use Drupal\file\FileInterface;
+use Drupal\filelink_usage\FileLinkUsageNormalizer;
 
 class FileLinkUsageManager {
 
@@ -19,14 +20,16 @@ class FileLinkUsageManager {
   protected FileLinkUsageScanner $scanner;
   protected FileUsageInterface $fileUsage;
   protected EntityTypeManagerInterface $entityTypeManager;
+  protected FileLinkUsageNormalizer $normalizer;
 
-  public function __construct(Connection $database, ConfigFactoryInterface $configFactory, TimeInterface $time, FileLinkUsageScanner $scanner, FileUsageInterface $fileUsage, EntityTypeManagerInterface $entityTypeManager) {
+  public function __construct(Connection $database, ConfigFactoryInterface $configFactory, TimeInterface $time, FileLinkUsageScanner $scanner, FileUsageInterface $fileUsage, EntityTypeManagerInterface $entityTypeManager, FileLinkUsageNormalizer $normalizer) {
     $this->database = $database;
     $this->configFactory = $configFactory;
     $this->time = $time;
     $this->scanner = $scanner;
     $this->fileUsage = $fileUsage;
     $this->entityTypeManager = $entityTypeManager;
+    $this->normalizer = $normalizer;
   }
 
   /**
@@ -85,13 +88,7 @@ class FileLinkUsageManager {
       ->fetchCol();
 
     foreach ($links as $link) {
-      $uri = $link;
-      if (preg_match('#https?://[^/]+(/sites/default/files/.*)#i', $uri, $m)) {
-        $uri = $m[1];
-      }
-      if (strpos($uri, '/sites/default/files/') === 0) {
-        $uri = 'public://' . substr($uri, strlen('/sites/default/files/'));
-      }
+      $uri = $this->normalizer->normalize($link);
       $file_storage = $this->entityTypeManager->getStorage('file');
       $files = $file_storage->loadByProperties(['uri' => $uri]);
       $file = $files ? reset($files) : NULL;
@@ -119,16 +116,10 @@ class FileLinkUsageManager {
       return;
     }
 
-    $relative_path = substr($uri, strlen('public://'));
-    $relative_url = '/sites/default/files/' . $relative_path;
-
     $query = $this->database->select('filelink_usage_matches', 'f')
-      ->fields('f', ['nid']);
-    $or = $query->orConditionGroup()
-      ->condition('link', $uri)
-      ->condition('link', $relative_url)
-      ->condition('link', '%' . $relative_url, 'LIKE');
-    $nids = $query->condition($or)->execute()->fetchCol();
+      ->fields('f', ['nid'])
+      ->condition('link', $uri);
+    $nids = $query->execute()->fetchCol();
 
     if (!$nids) {
       return;
