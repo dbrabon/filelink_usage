@@ -105,9 +105,10 @@ class FileLinkUsageManager {
    * Cleanup file usage when a node is deleted.
    */
   public function cleanupNode(NodeInterface $node): void {
+    $nid = $node->id();
     $links = $this->database->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
-      ->condition('nid', $node->id())
+      ->condition('nid', $nid)
       ->execute()
       ->fetchCol();
 
@@ -117,17 +118,22 @@ class FileLinkUsageManager {
       $files = $file_storage->loadByProperties(['uri' => $uri]);
       $file = $files ? reset($files) : NULL;
       if ($file) {
-        $this->fileUsage->delete($file, 'filelink_usage', 'node', $node->id());
+        $usage = $this->fileUsage->listUsage($file);
+        $count = $usage['filelink_usage']['node'][$nid] ?? 0;
+        while ($count > 0) {
+          $this->fileUsage->delete($file, 'filelink_usage', 'node', $nid);
+          $count--;
+        }
         Cache::invalidateTags(['file:' . $file->id()]);
       }
     }
 
     $this->database->delete('filelink_usage_matches')
-      ->condition('nid', $node->id())
+      ->condition('nid', $nid)
       ->execute();
 
     $this->database->delete('filelink_usage_scan_status')
-      ->condition('nid', $node->id())
+      ->condition('nid', $nid)
       ->execute();
   }
 

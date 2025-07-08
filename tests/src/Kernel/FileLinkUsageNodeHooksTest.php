@@ -119,5 +119,41 @@ class FileLinkUsageNodeHooksTest extends KernelTestBase {
     $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
   }
 
+  /**
+   * Ensures node delete removes usage entries via hook_node_delete().
+   */
+  public function testDeleteHookRemovesUsage(): void {
+    $uri = 'public://hook_delete.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri), 'txt');
+    $file = File::create([
+      'uri' => $uri,
+      'filename' => 'hook_delete.txt',
+    ]);
+    $file->save();
+
+    $body = '<a href="/sites/default/files/hook_delete.txt">Download</a>';
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Hook delete',
+      'body' => [
+        'value' => $body,
+        'format' => 'plain_text',
+      ],
+    ]);
+    $node->save();
+
+    // Usage should be added on save via insert hook.
+    $usage = $this->container->get('file.usage')->listUsage($file);
+    $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
+
+    $node->delete();
+
+    $database = $this->container->get('database');
+    $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
+    $this->assertEquals(0, $count);
+    $usage = $this->container->get('file.usage')->listUsage($file);
+    $this->assertEmpty($usage['filelink_usage']['node'] ?? []);
+  }
+
 }
 
