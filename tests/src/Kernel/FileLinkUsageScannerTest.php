@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\Tests\filelink_usage\Functional;
+namespace Drupal\Tests\filelink_usage\Kernel;
 
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\file\Entity\File;
