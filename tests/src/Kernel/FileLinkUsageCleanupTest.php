@@ -84,4 +84,56 @@ class FileLinkUsageCleanupTest extends KernelTestBase {
     $this->assertEmpty($usage['filelink_usage']['node'] ?? []);
   }
 
+  /**
+   * Simulates cleanup when matches already exist in the database.
+   */
+  public function testManualMatchesCleanupOnNodeDelete(): void {
+    $uri = 'public://manual.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri), 'txt');
+    $file = File::create([
+      'uri' => $uri,
+      'filename' => 'manual.txt',
+    ]);
+    $file->save();
+
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Manual matches',
+    ]);
+    $node->save();
+
+    $database = $this->container->get('database');
+    $database->insert('filelink_usage_matches')
+      ->fields([
+        'nid' => $node->id(),
+        'link' => $uri,
+        'timestamp' => $this->container->get('datetime.time')->getRequestTime(),
+      ])
+      ->execute();
+    $database->insert('filelink_usage_scan_status')
+      ->fields([
+        'nid' => $node->id(),
+        'scanned' => $this->container->get('datetime.time')->getRequestTime(),
+      ])
+      ->execute();
+
+    $this->container->get('file.usage')->add($file, 'filelink_usage', 'node', $node->id());
+
+    $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
+    $this->assertEquals(1, $count);
+    $count = $database->select('filelink_usage_scan_status')->countQuery()->execute()->fetchField();
+    $this->assertEquals(1, $count);
+    $usage = $this->container->get('file.usage')->listUsage($file);
+    $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
+
+    $node->delete();
+
+    $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
+    $this->assertEquals(0, $count);
+    $count = $database->select('filelink_usage_scan_status')->countQuery()->execute()->fetchField();
+    $this->assertEquals(0, $count);
+    $usage = $this->container->get('file.usage')->listUsage($file);
+    $this->assertEmpty($usage['filelink_usage']['node'] ?? []);
+  }
+
 }
