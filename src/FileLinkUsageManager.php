@@ -48,18 +48,32 @@ class FileLinkUsageManager {
     $interval = $intervals[$frequency] ?? 86400;
     $now = $this->time->getRequestTime();
 
-    if ($interval && $last_scan + $interval > $now) {
+    $matches_exist = (bool) $this->database->select('filelink_usage_matches')
+      ->range(0, 1)
+      ->execute()
+      ->fetchField();
+    $force_rescan = !$matches_exist;
+
+    if (!$force_rescan && $interval && $last_scan + $interval > $now) {
       return;
     }
 
-    $threshold = $interval ? $now - $interval : $now;
-    $query = $this->database->select('node_field_data', 'n');
-    $query->leftJoin('filelink_usage_scan_status', 's', 'n.nid = s.nid');
-    $query->fields('n', ['nid']);
-    $or = $query->orConditionGroup()
-      ->isNull('s.scanned')
-      ->condition('s.scanned', $threshold, '<');
-    $nids = $query->condition($or)->execute()->fetchCol();
+    if (!$force_rescan) {
+      $threshold = $interval ? $now - $interval : $now;
+      $query = $this->database->select('node_field_data', 'n');
+      $query->leftJoin('filelink_usage_scan_status', 's', 'n.nid = s.nid');
+      $query->fields('n', ['nid']);
+      $or = $query->orConditionGroup()
+        ->isNull('s.scanned')
+        ->condition('s.scanned', $threshold, '<');
+      $nids = $query->condition($or)->execute()->fetchCol();
+    }
+    else {
+      $nids = $this->database->select('node_field_data', 'n')
+        ->fields('n', ['nid'])
+        ->execute()
+        ->fetchCol();
+    }
 
     if ($nids) {
       $this->scanner->scan($nids);
