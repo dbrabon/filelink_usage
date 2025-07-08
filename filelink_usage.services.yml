@@ -4,7 +4,7 @@ services:
 
   filelink_usage.scanner:
     class: Drupal\filelink_usage\FileLinkUsageScanner
-    arguments: ['@entity_type.manager', '@database', '@file.usage', '@logger.channel.filelink_usage', '@config.factory', '@filelink_usage.normalizer']
+    arguments: ['@entity_type.manager', '@database', '@file.usage', '@logger.channel.filelink_usage', '@config.factory', '@filelink_usage.normalizer', '@datetime.time']
     tags:
       - { name: default }
 

@@ -10,6 +10,7 @@ use Drupal\node\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\filelink_usage\FileLinkUsageNormalizer;
+use Drupal\Component\Datetime\TimeInterface;
 
 class FileLinkUsageScanner {
 
@@ -19,14 +20,16 @@ class FileLinkUsageScanner {
   protected LoggerInterface $logger;
   protected ConfigFactoryInterface $configFactory;
   protected FileLinkUsageNormalizer $normalizer;
+  protected TimeInterface $time;
 
-  public function __construct(EntityTypeManagerInterface $entityTypeManager, Connection $database, FileUsageInterface $fileUsage, LoggerInterface $logger, ConfigFactoryInterface $configFactory, FileLinkUsageNormalizer $normalizer) {
+  public function __construct(EntityTypeManagerInterface $entityTypeManager, Connection $database, FileUsageInterface $fileUsage, LoggerInterface $logger, ConfigFactoryInterface $configFactory, FileLinkUsageNormalizer $normalizer, TimeInterface $time) {
     $this->entityTypeManager = $entityTypeManager;
     $this->database = $database;
     $this->fileUsage = $fileUsage;
     $this->logger = $logger;
     $this->configFactory = $configFactory;
     $this->normalizer = $normalizer;
+    $this->time = $time;
   }
 
   public function scan(?array $nids = NULL): array {
@@ -48,10 +51,11 @@ class FileLinkUsageScanner {
         ->condition('nid', $node->id())
         ->execute()
         ->fetchCol();
-      $existing_links = array_flip($links);
+      $existing_links = [];
 
       foreach ($links as $link) {
         $uri = $this->normalizer->normalize($link);
+        $existing_links[$uri] = TRUE;
 
         $file_storage = $this->entityTypeManager->getStorage('file');
         $files = $file_storage->loadByProperties(['uri' => $uri]);
@@ -107,7 +111,7 @@ class FileLinkUsageScanner {
                 'link' => $uri,
               ])
               ->fields([
-                'timestamp' => time(),
+                'timestamp' => $this->time->getRequestTime(),
               ])
               ->execute();
 
@@ -132,7 +136,7 @@ class FileLinkUsageScanner {
       // Record successful scan time.
         $this->database->merge('filelink_usage_scan_status')
           ->key('nid', $node->id())
-          ->fields(['scanned' => time()])
+          ->fields(['scanned' => $this->time->getRequestTime()])
           ->execute();
     }
 
