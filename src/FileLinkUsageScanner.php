@@ -71,11 +71,19 @@ class FileLinkUsageScanner {
         ->execute();
 
       foreach ($node->getFields() as $field) {
-        if ($field->getFieldDefinition()->getType() === 'text_long' || $field->getFieldDefinition()->getType() === 'text_with_summary') {
-          $text = $field->value;
-          preg_match_all('/(public:\/\/[^"\']+|\/sites\/default\/files\/[^"\']+|https?:\/\/[^\/"]+\/sites\/default\/files\/[^"\']+)/i', $text, $matches);
-          foreach ($matches[0] as $match) {
-            $uri = $this->normalizer->normalize($match);
+        $type = $field->getFieldDefinition()->getType();
+        if ($type === 'text_long' || $type === 'text_with_summary') {
+          $texts = [$field->value];
+          if ($type === 'text_with_summary') {
+            $texts[] = $field->summary;
+          }
+          foreach ($texts as $text) {
+            if ($text === NULL || $text === '') {
+              continue;
+            }
+            preg_match_all('/(public:\/\/[^"\']+|\/sites\/default\/files\/[^"\']+|https?:\/\/[^\/"]+\/sites\/default\/files\/[^"\']+)/i', $text, $matches);
+            foreach ($matches[0] as $match) {
+              $uri = $this->normalizer->normalize($match);
 
             $file_storage = $this->entityTypeManager->getStorage('file');
             $files = $file_storage->loadByProperties(['uri' => $uri]);

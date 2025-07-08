@@ -172,5 +172,41 @@ class FileLinkUsageScannerTest extends KernelTestBase {
     $this->assertArrayHasKey($node->id(), $usage2['filelink_usage']['node']);
   }
 
+  /**
+   * Tests scanning of links contained in text summaries.
+   */
+  public function testSummaryLinksDetected(): void {
+    $uri = 'public://summary.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri), 'txt');
+    $file = File::create([
+      'uri' => $uri,
+      'filename' => 'summary.txt',
+    ]);
+    $file->save();
+
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Summary links',
+      'body' => [
+        'value' => 'No link here',
+        'summary' => '<a href="/sites/default/files/summary.txt">Download</a>',
+        'format' => 'plain_text',
+      ],
+    ]);
+    $node->save();
+
+    $this->container->get('filelink_usage.scanner')->scan([$node->id()]);
+
+    $link = $this->container->get('database')->select('filelink_usage_matches', 'f')
+      ->fields('f', ['link'])
+      ->condition('nid', $node->id())
+      ->execute()
+      ->fetchField();
+
+    $this->assertEquals('public://summary.txt', $link);
+    $usage = $this->container->get('file.usage')->listUsage($file);
+    $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
+  }
+
 }
 
