@@ -1,0 +1,16 @@
+{
+  "name": "dbrabon/filelink_usage",
+  "description": "Detect and track hard-coded file links in Drupal text fields to ensure accurate file usage."
+  "type": "drupal-module",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "Daniel Boone Brabon",
+      "email": "dbrabon@sandiego.gov",
+      "role": "Maintainer"
+    }
+  ],
+  "require": {
+    "php": "^8.1"
+  }
+}
