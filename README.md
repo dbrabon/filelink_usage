@@ -44,6 +44,17 @@ interval.
 - Prevent false orphaning of files used in WYSIWYG content
 - Maintain cleaner file management and avoid accidental file deletions
 
+## Getting Started
+
+Install PHP dependencies and run the module's Kernel tests from your Drupal root:
+
+```bash
+composer install
+phpunit -c core modules/custom/filelink_usage/tests/src/Kernel
+```
+
+These commands assume the Drupal test environment is set up and available.
+
 ## Status
 
 This module is under active development. Contributions and feedback are welcome.
