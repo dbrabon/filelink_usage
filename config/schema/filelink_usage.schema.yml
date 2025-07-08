@@ -13,6 +13,8 @@ filelink_usage.settings:
         - hourly
         - daily
         - weekly
+        - monthly
+        - yearly
     last_scan:
       type: integer
       label: 'Timestamp of last cron scan'

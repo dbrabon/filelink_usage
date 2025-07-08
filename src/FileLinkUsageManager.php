@@ -44,8 +44,10 @@ class FileLinkUsageManager {
       'hourly' => 3600,
       'daily' => 86400,
       'weekly' => 604800,
+      'monthly' => 2592000,
+      'yearly' => 31536000,
     ];
-    $interval = $intervals[$frequency] ?? 86400;
+    $interval = $intervals[$frequency] ?? 31536000;
     $now = $this->time->getRequestTime();
 
     $match_count = (int) $this->database->select('filelink_usage_matches')

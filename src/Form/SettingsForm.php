@@ -61,6 +61,8 @@ class SettingsForm extends ConfigFormBase {
         'hourly' => $this->t('Hourly'),
         'daily' => $this->t('Daily'),
         'weekly' => $this->t('Weekly'),
+        'monthly' => $this->t('Monthly'),
+        'yearly' => $this->t('Yearly'),
       ],
       '#default_value' => $config->get('scan_frequency'),
       '#description' => $this->t('How often cron should scan for file links.'),

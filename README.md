@@ -14,15 +14,15 @@ The `filelink_usage` module scans all text fields across your Drupal 10 or 11 si
 - 📥 Newly uploaded files automatically gain usage entries when referenced
   in existing content
 - 💻 `drush filelink_usage:scan` command to run the scanner manually
-- ⚙️ Configuration form with verbose logging enabled by default
+- ⚙️ Configuration form with verbose logging disabled by default
 - 🧹 Admin UI button to purge stored file link matches
 - 📅 Nodes are re-scanned if their last scan time exceeds the chosen interval
 
 ## Configuration
 
-Set the **Cron scan frequency** (hourly, daily, weekly, or every cron run) on the module's
+Set the **Cron scan frequency** (hourly, daily, weekly, monthly, yearly, or every cron run) on the module's
 settings page. This value determines how often cron runs the scanner and how
-long a node can go before it is rescanned.
+long a node can go before it is rescanned. The default frequency is **yearly**.
 
 ## Purging Saved Links and Cron Behavior
 
