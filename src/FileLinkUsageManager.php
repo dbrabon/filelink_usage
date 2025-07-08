@@ -92,6 +92,13 @@ class FileLinkUsageManager {
   }
 
   /**
+   * Clear scan status for all nodes.
+   */
+  public function markAllForRescan(): void {
+    $this->database->truncate('filelink_usage_scan_status')->execute();
+  }
+
+  /**
    * Cleanup file usage when a node is deleted.
    */
   public function cleanupNode(NodeInterface $node): void {
