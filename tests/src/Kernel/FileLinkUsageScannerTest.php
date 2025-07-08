@@ -208,5 +208,51 @@ class FileLinkUsageScannerTest extends KernelTestBase {
     $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
   }
 
+  /**
+   * Purging matches and rescanning repopulates the table.
+   */
+  public function testScannerRepopulatesAfterTruncate(): void {
+    $uri = 'public://repop.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri), 'txt');
+    $file = File::create([
+      'uri' => $uri,
+      'filename' => 'repop.txt',
+    ]);
+    $file->save();
+
+    $body = '<a href="/sites/default/files/repop.txt">Download</a>';
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Repopulate',
+      'body' => [
+        'value' => $body,
+        'format' => 'plain_text',
+      ],
+    ]);
+    $node->save();
+
+    $scanner = $this->container->get('filelink_usage.scanner');
+    $scanner->scan([$node->id()]);
+
+    $database = $this->container->get('database');
+    $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
+    $this->assertGreaterThan(0, $count);
+
+    $database->truncate('filelink_usage_matches')->execute();
+    $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
+    $this->assertEquals(0, $count);
+
+    $scanner->scan([$node->id()]);
+    $link = $database->select('filelink_usage_matches', 'f')
+      ->fields('f', ['link'])
+      ->condition('nid', $node->id())
+      ->execute()
+      ->fetchField();
+
+    $this->assertEquals('public://repop.txt', $link);
+    $usage = $this->container->get('file.usage')->listUsage($file);
+    $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
+  }
+
 }
 
