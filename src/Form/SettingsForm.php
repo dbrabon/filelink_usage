@@ -31,6 +31,21 @@ class SettingsForm extends ConfigFormBase {
   public function buildForm(array $form, FormStateInterface $form_state) {
     $config = $this->config('filelink_usage.settings');
 
+    $count = \Drupal::database()
+      ->select('filelink_usage_matches')
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+
+    $form['match_count'] = [
+      '#type' => 'markup',
+      '#markup' => $this->t('Detected hard-coded links: @count', ['@count' => $count]),
+      '#weight' => -100,
+      '#cache' => [
+        'max-age' => 0,
+      ],
+    ];
+
     $form['verbose_logging'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Verbose logging'),
