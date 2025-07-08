@@ -148,7 +148,16 @@ class FileLinkUsageScanner {
           ->execute();
     }
 
-    $this->logger->info('Scanned @count nodes for file links.', ['@count' => count($nodes)]);
+    $nids_list = implode(', ', array_keys($nodes));
+    if (count($nodes) === 1) {
+      $this->logger->info('Scanned node @nids for file links.', ['@nids' => $nids_list]);
+    }
+    else {
+      $this->logger->info('Scanned @count nodes for file links: @nids.', [
+        '@count' => count($nodes),
+        '@nids' => $nids_list,
+      ]);
+    }
     return $results;
   }
 
