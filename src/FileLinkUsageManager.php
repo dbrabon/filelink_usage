@@ -48,11 +48,11 @@ class FileLinkUsageManager {
     $interval = $intervals[$frequency] ?? 86400;
     $now = $this->time->getRequestTime();
 
-    $matches_exist = (bool) $this->database->select('filelink_usage_matches')
-      ->range(0, 1)
+    $match_count = (int) $this->database->select('filelink_usage_matches')
+      ->countQuery()
       ->execute()
       ->fetchField();
-    $force_rescan = !$matches_exist;
+    $force_rescan = $match_count === 0;
 
     if (!$force_rescan && $interval && $last_scan + $interval > $now) {
       return;
