@@ -130,4 +130,44 @@ class FileLinkUsagePurgeTest extends KernelTestBase {
     $this->assertGreaterThan(0, $count);
   }
 
+
+  /**
+   * Verifies that cron repopulates matches after purge.
+   */
+  public function testCronRepopulatesMatchesAfterPurge(): void {
+    $uri = 'public://repopulate.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri), 'txt');
+    $file = File::create([
+      'uri' => $uri,
+      'filename' => 'repopulate.txt',
+    ]);
+    $file->save();
+
+    $body = '<a href="/sites/default/files/repopulate.txt">Download</a>';
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Cron repopulate',
+      'body' => [
+        'value' => $body,
+        'format' => 'plain_text',
+      ],
+    ]);
+    $node->save();
+
+    $this->container->get('filelink_usage.scanner')->scan([$node->id()]);
+
+    $database = $this->container->get('database');
+
+    $form = SettingsForm::create($this->container);
+    $form_state = new FormState();
+    $form->purgeFileLinkMatches([], $form_state);
+
+    $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
+    $this->assertEquals(0, $count);
+
+    $this->container->get('filelink_usage.manager')->runCron();
+    $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
+    $this->assertGreaterThan(0, $count);
+  }
+
 }
