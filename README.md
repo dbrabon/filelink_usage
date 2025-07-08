@@ -17,6 +17,7 @@ The `filelink_usage` module scans all text fields across your Drupal 10 or 11 si
 - ⚙️ Configuration form with verbose logging disabled by default
 - 🧹 Admin UI button to purge stored file link matches
 - 📅 Nodes are re-scanned if their last scan time exceeds the chosen interval
+- 🗑️ Hard-coded file link usages are removed automatically when nodes are deleted
 
 ## Configuration
 
