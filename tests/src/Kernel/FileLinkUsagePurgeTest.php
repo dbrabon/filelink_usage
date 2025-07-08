@@ -95,4 +95,39 @@ class FileLinkUsagePurgeTest extends KernelTestBase {
     $this->assertGreaterThan(0, $this->config('filelink_usage.settings')->get('last_scan'));
   }
 
+  /**
+   * Ensures cron performs full rescan when matches table is empty.
+   */
+  public function testCronRescansWhenMatchesEmpty(): void {
+    $uri = 'public://example2.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri), 'ex');
+    $file = File::create([
+      'uri' => $uri,
+      'filename' => 'example2.txt',
+    ]);
+    $file->save();
+
+    $body = '<a href="/sites/default/files/example2.txt">Download</a>';
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Test node 2',
+      'body' => [
+        'value' => $body,
+        'format' => 'plain_text',
+      ],
+    ]);
+    $node->save();
+
+    // Initial run via manager to populate and set last_scan.
+    $this->container->get('filelink_usage.manager')->runCron();
+
+    $database = $this->container->get('database');
+    $database->truncate('filelink_usage_matches')->execute();
+
+    // Cron should detect empty table and rescan.
+    $this->container->get('filelink_usage.manager')->runCron();
+    $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
+    $this->assertGreaterThan(0, $count);
+  }
+
 }
