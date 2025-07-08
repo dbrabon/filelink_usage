@@ -118,5 +118,59 @@ class FileLinkUsageScannerTest extends KernelTestBase {
     $this->assertCount(1, $usage['filelink_usage']['node']);
   }
 
+  /**
+   * Tests detection of percent-encoded and space-containing paths.
+   */
+  public function testSpaceAndPercentEncodedLinks(): void {
+    $uri1 = 'public://My File.pdf';
+    file_put_contents($this->container->get('file_system')->realpath($uri1), 'pdf');
+    $file1 = File::create([
+      'uri' => $uri1,
+      'filename' => 'My File.pdf',
+    ]);
+    $file1->save();
+
+    $uri2 = 'public://my file.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri2), 'txt');
+    $file2 = File::create([
+      'uri' => $uri2,
+      'filename' => 'my file.txt',
+    ]);
+    $file2->save();
+
+    $body = implode(' ', [
+      '<a href="/sites/default/files/My%20File.pdf">PDF</a>',
+      '<a href="/sites/default/files/my file.txt">TXT</a>',
+    ]);
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Test node spaces',
+      'body' => [
+        'value' => $body,
+        'format' => 'plain_text',
+      ],
+    ]);
+    $node->save();
+
+    $this->container->get('filelink_usage.scanner')->scan([$node->id()]);
+
+    $links = $this->container->get('database')->select('filelink_usage_matches', 'f')
+      ->fields('f', ['link'])
+      ->condition('nid', $node->id())
+      ->execute()
+      ->fetchCol();
+
+    sort($links);
+    $this->assertEquals([
+      'public://My File.pdf',
+      'public://my file.txt',
+    ], $links);
+
+    $usage1 = $this->container->get('file.usage')->listUsage($file1);
+    $this->assertArrayHasKey($node->id(), $usage1['filelink_usage']['node']);
+    $usage2 = $this->container->get('file.usage')->listUsage($file2);
+    $this->assertArrayHasKey($node->id(), $usage2['filelink_usage']['node']);
+  }
+
 }
 

@@ -73,7 +73,7 @@ class FileLinkUsageScanner {
       foreach ($node->getFields() as $field) {
         if ($field->getFieldDefinition()->getType() === 'text_long' || $field->getFieldDefinition()->getType() === 'text_with_summary') {
           $text = $field->value;
-          preg_match_all('/(public:\/\/[^\s"\']+|\/sites\/default\/files\/[^\s"\']+|https?:\/\/[^\/"]+\/sites\/default\/files\/[^\s"\']+)/i', $text, $matches);
+          preg_match_all('/(public:\/\/[^"\']+|\/sites\/default\/files\/[^"\']+|https?:\/\/[^\/"]+\/sites\/default\/files\/[^"\']+)/i', $text, $matches);
           foreach ($matches[0] as $match) {
             $uri = $this->normalizer->normalize($match);
 
