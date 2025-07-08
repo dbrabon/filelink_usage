@@ -168,8 +168,8 @@ class FileLinkUsageScanner {
     }
     return $results;
   }
-
   }
+
 
   /**
    * Scan a single node for file links and update usage.
@@ -177,5 +177,6 @@ class FileLinkUsageScanner {
   public function scanNode(NodeInterface $node): array {
     return $this->scan([$node->id()]);
   }
+
 
 }
