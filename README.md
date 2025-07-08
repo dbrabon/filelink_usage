@@ -24,6 +24,20 @@ Set the **Cron scan frequency** (hourly, daily, weekly, or every cron run) on th
 settings page. This value determines how often cron runs the scanner and how
 long a node can go before it is rescanned.
 
+## Purging Saved Links and Cron Behavior
+
+Click **Purge saved file links** on the settings form to remove all stored link
+matches and scan status records. This empties the `filelink_usage_matches` and
+`filelink_usage_scan_status` tables and resets the `last_scan` value. After a
+purge, cron detects the empty link list and runs a full scan on the next
+execution.
+
+During normal operation cron compares the configured frequency with the last
+scan time to decide which nodes need scanning. If any saved matches remain,
+only nodes whose last scan is older than the chosen interval are rescanned.
+When no matches exist, a full scan is triggered automatically regardless of the
+interval.
+
 ## Use Cases
 
 - Keep file usage counts accurate even when editors paste in direct links to files
