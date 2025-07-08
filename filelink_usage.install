@@ -168,3 +168,20 @@ function filelink_usage_update_8004() {
     }
   }
 }
+
+/**
+ * Update default settings for verbose logging and scan frequency.
+ */
+function filelink_usage_update_8005() {
+  $config = \Drupal::configFactory()->getEditable('filelink_usage.settings');
+  if ($config->get('verbose_logging') === TRUE) {
+    $config->set('verbose_logging', FALSE);
+  }
+  if ($config->get('scan_frequency') === 'daily') {
+    $config->set('scan_frequency', 'yearly');
+  }
+  if ($config->get('scan_frequency') === NULL) {
+    $config->set('scan_frequency', 'yearly');
+  }
+  $config->save();
+}
