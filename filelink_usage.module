@@ -37,6 +37,9 @@ function filelink_usage_entity_update(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
     \Drupal::service('filelink_usage.scanner')->scanNode($entity);
   }
+  elseif ($entity instanceof FileInterface) {
+    \Drupal::service('filelink_usage.manager')->addUsageForFile($entity);
+  }
 }
 
 /**
