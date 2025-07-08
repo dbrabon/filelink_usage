@@ -14,21 +14,21 @@ class SettingsForm extends ConfigFormBase {
   /**
    * {@inheritdoc}
    */
-  protected function getEditableConfigNames() {
+  protected function getEditableConfigNames(): array {
     return ['filelink_usage.settings'];
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getFormId() {
+  public function getFormId(): string {
     return 'filelink_usage_settings_form';
   }
 
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, FormStateInterface $form_state) {
+  public function buildForm(array $form, FormStateInterface $form_state): array {
     $config = $this->config('filelink_usage.settings');
 
     $count = \Drupal::database()
@@ -83,7 +83,7 @@ class SettingsForm extends ConfigFormBase {
   /**
    * {@inheritdoc}
    */
-  public function submitForm(array &$form, FormStateInterface $form_state) {
+  public function submitForm(array &$form, FormStateInterface $form_state): void {
     $this->configFactory->getEditable('filelink_usage.settings')
       ->set('verbose_logging', $form_state->getValue('verbose_logging'))
       ->set('scan_frequency', $form_state->getValue('scan_frequency'))
@@ -95,7 +95,7 @@ class SettingsForm extends ConfigFormBase {
   /**
    * Purges saved file link matches from the database.
    */
-  public function purgeFileLinkMatches(array &$form, FormStateInterface $form_state) {
+  public function purgeFileLinkMatches(array &$form, FormStateInterface $form_state): void {
     $connection = Drupal::database();
     $connection->truncate('filelink_usage_matches')->execute();
     \Drupal::service('filelink_usage.manager')->markAllForRescan();
