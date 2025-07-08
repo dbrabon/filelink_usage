@@ -81,7 +81,7 @@ class SettingsForm extends ConfigFormBase {
   public function purgeFileLinkMatches(array &$form, FormStateInterface $form_state) {
     $connection = Drupal::database();
     $connection->truncate('filelink_usage_matches')->execute();
-    $connection->truncate('filelink_usage_scan_status')->execute();
+    \Drupal::service('filelink_usage.manager')->markAllForRescan();
 
     // Mark all nodes for rescan in case additional modules rely on this hook.
     $storage = Drupal::entityTypeManager()->getStorage('node');
