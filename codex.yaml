@@ -1,3 +1,0 @@
-tasks:
-  - name: Scan for hardcoded file links
-    command: drush filelink_usage:scan
