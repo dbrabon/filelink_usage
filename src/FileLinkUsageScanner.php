@@ -44,6 +44,7 @@ class FileLinkUsageScanner {
     }
 
     $nodes = $storage->loadMultiple($nids);
+    $count = 0;
     foreach ($nodes as $node) {
       // Retrieve existing matches so we know which links are new.
       $links = $this->database->select('filelink_usage_matches', 'f')
@@ -146,6 +147,13 @@ class FileLinkUsageScanner {
           ->key('nid', $node->id())
           ->fields(['scanned' => $this->time->getRequestTime()])
           ->execute();
+
+      $count++;
+      if ($verbose && $count % 100 === 0) {
+        $this->logger->info('Scanned @count nodes for file links so far.', [
+          '@count' => $count,
+        ]);
+      }
     }
 
     $nids_list = implode(', ', array_keys($nodes));
