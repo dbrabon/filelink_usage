@@ -165,7 +165,7 @@ class FileLinkUsageNodeHooksTest extends KernelTestBase {
   }
 
   /**
-   * Ensures node delete removes usage entries via hook_node_delete().
+   * Ensures node delete removes usage entries via entity_delete().
    */
   public function testDeleteHookRemovesUsage(): void {
     $uri = 'public://hook_delete.txt';
