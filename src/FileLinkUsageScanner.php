@@ -170,7 +170,6 @@ class FileLinkUsageScanner {
     return $results;
   }
 
-}
 
 /**
    * Scan a single node for file links and update usage.
