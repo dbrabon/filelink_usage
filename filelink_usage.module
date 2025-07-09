@@ -25,6 +25,7 @@ function filelink_usage_mark_for_rescan(NodeInterface $node) {
 function filelink_usage_entity_insert(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
     \Drupal::service('filelink_usage.scanner')->scanNode($entity);
+    \Drupal::service('filelink_usage.manager')->reconcileNodeUsage($entity->id());
   }
   elseif ($entity instanceof FileInterface) {
     \Drupal::service('filelink_usage.manager')->addUsageForFile($entity);
@@ -37,6 +38,7 @@ function filelink_usage_entity_insert(EntityInterface $entity) {
 function filelink_usage_entity_update(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
     \Drupal::service('filelink_usage.scanner')->scanNode($entity);
+    \Drupal::service('filelink_usage.manager')->reconcileNodeUsage($entity->id());
   }
   elseif ($entity instanceof FileInterface) {
     \Drupal::service('filelink_usage.manager')->addUsageForFile($entity);
@@ -48,7 +50,7 @@ function filelink_usage_entity_update(EntityInterface $entity) {
  */
 function filelink_usage_entity_delete(EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
-    \Drupal::service('filelink_usage.manager')->cleanupNode($entity);
+    \Drupal::service('filelink_usage.manager')->reconcileNodeUsage($entity->id(), TRUE);
   }
 }
 
@@ -56,5 +58,5 @@ function filelink_usage_entity_delete(EntityInterface $entity) {
  * Implements hook_node_delete().
  */
 function filelink_usage_node_delete(NodeInterface $node) {
-  \Drupal::service('filelink_usage.manager')->cleanupNode($node);
+  \Drupal::service('filelink_usage.manager')->reconcileNodeUsage($node->id(), TRUE);
 }

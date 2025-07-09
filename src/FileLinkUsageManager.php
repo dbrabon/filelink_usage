@@ -80,6 +80,9 @@ class FileLinkUsageManager {
 
     if ($nids) {
       $this->scanner->scan($nids);
+      foreach ($nids as $nid) {
+        $this->reconcileNodeUsage((int) $nid);
+      }
     }
 
     $config->set('last_scan', $now)->save();
@@ -102,39 +105,91 @@ class FileLinkUsageManager {
   }
 
   /**
-   * Cleanup file usage when a node is deleted.
+   * Reconcile file usage records for a node.
+   *
+   * @param int $nid
+   *   The node ID.
+   * @param bool $deleted
+   *   TRUE if the node was deleted and all usage should be removed.
    */
-  public function cleanupNode(NodeInterface $node): void {
-    $nid = $node->id();
+  public function reconcileNodeUsage(int $nid, bool $deleted = FALSE): void {
+    // Load links recorded for this node.
     $links = $this->database->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
       ->condition('nid', $nid)
       ->execute()
       ->fetchCol();
 
+    $file_storage = $this->entityTypeManager->getStorage('file');
+    $files = [];
     foreach ($links as $link) {
       $uri = $this->normalizer->normalize($link);
-      $file_storage = $this->entityTypeManager->getStorage('file');
-      $files = $file_storage->loadByProperties(['uri' => $uri]);
-      $file = $files ? reset($files) : NULL;
+      $loaded = $file_storage->loadByProperties(['uri' => $uri]);
+      $file = $loaded ? reset($loaded) : NULL;
       if ($file) {
-        $usage = $this->fileUsage->listUsage($file);
-        $count = $usage['filelink_usage']['node'][$nid] ?? 0;
-        while ($count > 0) {
-          $this->fileUsage->delete($file, 'filelink_usage', 'node', $nid);
-          $count--;
-        }
-        Cache::invalidateTags(['file:' . $file->id()]);
+        $files[$file->id()] = $file;
       }
     }
 
-    $this->database->delete('filelink_usage_matches')
-      ->condition('nid', $nid)
-      ->execute();
+    // Current usage rows for the node.
+    $usage_rows = $this->database->select('file_usage', 'fu')
+      ->fields('fu', ['fid', 'count'])
+      ->condition('type', 'node')
+      ->condition('id', $nid)
+      ->condition('module', 'filelink_usage')
+      ->execute()
+      ->fetchAllKeyed();
 
-    $this->database->delete('filelink_usage_scan_status')
-      ->condition('nid', $nid)
-      ->execute();
+    // If the node was deleted remove all usage and cleanup tables.
+    if ($deleted) {
+      foreach ($usage_rows as $fid => $count) {
+        $file = $file_storage->load($fid);
+        if ($file) {
+          while ($count-- > 0) {
+            $this->fileUsage->delete($file, 'filelink_usage', 'node', $nid);
+          }
+          Cache::invalidateTags(['file:' . $fid]);
+        }
+      }
+
+      $this->database->delete('filelink_usage_matches')
+        ->condition('nid', $nid)
+        ->execute();
+
+      $this->database->delete('filelink_usage_scan_status')
+        ->condition('nid', $nid)
+        ->execute();
+
+      return;
+    }
+
+    // Remove usage that no longer has a matching link.
+    foreach ($usage_rows as $fid => $count) {
+      if (!isset($files[$fid])) {
+        $file = $file_storage->load($fid);
+        if ($file) {
+          while ($count-- > 0) {
+            $this->fileUsage->delete($file, 'filelink_usage', 'node', $nid);
+          }
+          Cache::invalidateTags(['file:' . $fid]);
+        }
+      }
+    }
+
+    // Add usage for new links not yet recorded.
+    foreach ($files as $fid => $file) {
+      if (!isset($usage_rows[$fid])) {
+        $this->fileUsage->add($file, 'filelink_usage', 'node', $nid);
+        Cache::invalidateTags(['file:' . $fid]);
+      }
+    }
+  }
+
+  /**
+   * Cleanup file usage when a node is deleted.
+   */
+  public function cleanupNode(NodeInterface $node): void {
+    $this->reconcileNodeUsage($node->id(), TRUE);
   }
 
   /**
