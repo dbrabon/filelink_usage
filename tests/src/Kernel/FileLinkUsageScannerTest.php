@@ -109,7 +109,8 @@ class FileLinkUsageScannerTest extends KernelTestBase {
 
     $link = $this->container->get('database')->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
-      ->condition('nid', $node->id())
+      ->condition('entity_type', 'node')
+      ->condition('entity_id', $node->id())
       ->execute()
       ->fetchField();
 
@@ -156,7 +157,8 @@ class FileLinkUsageScannerTest extends KernelTestBase {
 
     $links = $this->container->get('database')->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
-      ->condition('nid', $node->id())
+      ->condition('entity_type', 'node')
+      ->condition('entity_id', $node->id())
       ->execute()
       ->fetchCol();
 
@@ -199,7 +201,8 @@ class FileLinkUsageScannerTest extends KernelTestBase {
 
     $link = $this->container->get('database')->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
-      ->condition('nid', $node->id())
+      ->condition('entity_type', 'node')
+      ->condition('entity_id', $node->id())
       ->execute()
       ->fetchField();
 
@@ -245,7 +248,8 @@ class FileLinkUsageScannerTest extends KernelTestBase {
     $scanner->scan([$node->id()]);
     $link = $database->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
-      ->condition('nid', $node->id())
+      ->condition('entity_type', 'node')
+      ->condition('entity_id', $node->id())
       ->execute()
       ->fetchField();
 

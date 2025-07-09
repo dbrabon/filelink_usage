@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\node\NodeInterface;
 use Drupal\file\FileInterface;
 
@@ -23,12 +24,12 @@ function filelink_usage_mark_for_rescan(NodeInterface $node) {
  * Implements hook_entity_insert().
  */
 function filelink_usage_entity_insert(EntityInterface $entity) {
-  if ($entity instanceof NodeInterface) {
-    \Drupal::service('filelink_usage.scanner')->scanNode($entity);
-    \Drupal::service('filelink_usage.manager')->reconcileNodeUsage((int) $entity->id());
-  }
-  elseif ($entity instanceof FileInterface) {
+  if ($entity instanceof FileInterface) {
     \Drupal::service('filelink_usage.manager')->addUsageForFile($entity);
+  }
+  elseif ($entity instanceof ContentEntityInterface) {
+    \Drupal::service('filelink_usage.scanner')->scan([$entity->id()], $entity->getEntityTypeId());
+    \Drupal::service('filelink_usage.manager')->reconcileEntityUsage($entity->getEntityTypeId(), (int) $entity->id());
   }
 }
 
@@ -36,12 +37,12 @@ function filelink_usage_entity_insert(EntityInterface $entity) {
  * Implements hook_entity_update().
  */
 function filelink_usage_entity_update(EntityInterface $entity) {
-  if ($entity instanceof NodeInterface) {
-    \Drupal::service('filelink_usage.scanner')->scanNode($entity);
-    \Drupal::service('filelink_usage.manager')->reconcileNodeUsage((int) $entity->id());
-  }
-  elseif ($entity instanceof FileInterface) {
+  if ($entity instanceof FileInterface) {
     \Drupal::service('filelink_usage.manager')->addUsageForFile($entity);
+  }
+  elseif ($entity instanceof ContentEntityInterface) {
+    \Drupal::service('filelink_usage.scanner')->scan([$entity->id()], $entity->getEntityTypeId());
+    \Drupal::service('filelink_usage.manager')->reconcileEntityUsage($entity->getEntityTypeId(), (int) $entity->id());
   }
 }
 
@@ -49,7 +50,7 @@ function filelink_usage_entity_update(EntityInterface $entity) {
  * Implements hook_entity_delete().
  */
 function filelink_usage_entity_delete(EntityInterface $entity) {
-  if ($entity instanceof NodeInterface) {
-    \Drupal::service('filelink_usage.manager')->reconcileNodeUsage((int) $entity->id(), TRUE);
+  if ($entity instanceof ContentEntityInterface && !$entity instanceof FileInterface) {
+    \Drupal::service('filelink_usage.manager')->reconcileEntityUsage($entity->getEntityTypeId(), (int) $entity->id(), TRUE);
   }
 }

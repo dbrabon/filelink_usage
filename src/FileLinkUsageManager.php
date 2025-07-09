@@ -9,6 +9,7 @@ use Drupal\Core\Cache\Cache;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\node\NodeInterface;
 use Drupal\file\FileInterface;
 use Drupal\filelink_usage\FileLinkUsageNormalizer;
@@ -89,11 +90,12 @@ class FileLinkUsageManager {
   }
 
   /**
-   * Mark a node for rescan by clearing its status.
+   * Mark an entity for rescan by clearing its status.
    */
-  public function markForRescan(NodeInterface $node): void {
+  public function markForRescan(ContentEntityInterface $entity): void {
     $this->database->delete('filelink_usage_scan_status')
-      ->condition('nid', $node->id())
+      ->condition('entity_type', $entity->getEntityTypeId())
+      ->condition('entity_id', $entity->id())
       ->execute();
   }
 
@@ -105,18 +107,21 @@ class FileLinkUsageManager {
   }
 
   /**
-   * Reconcile file usage records for a node.
+   * Reconcile file usage records for a content entity.
    *
-   * @param int $nid
-   *   The node ID.
+   * @param string $entity_type_id
+   *   The entity type ID.
+   * @param int $id
+   *   The entity ID.
    * @param bool $deleted
    *   TRUE if the node was deleted and all usage should be removed.
    */
-  public function reconcileNodeUsage(int $nid, bool $deleted = FALSE): void {
-    // Load links recorded for this node.
+  public function reconcileEntityUsage(string $entity_type_id, int $id, bool $deleted = FALSE): void {
+    // Load links recorded for this entity.
     $links = $this->database->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
-      ->condition('nid', $nid)
+      ->condition('entity_type', $entity_type_id)
+      ->condition('entity_id', $id)
       ->execute()
       ->fetchCol();
 
@@ -131,33 +136,35 @@ class FileLinkUsageManager {
       }
     }
 
-    // Current usage rows for the node.
+    // Current usage rows for the entity.
     $usage_rows = $this->database->select('file_usage', 'fu')
       ->fields('fu', ['fid', 'count'])
-      ->condition('type', 'node')
-      ->condition('id', $nid)
+      ->condition('type', $entity_type_id)
+      ->condition('id', $id)
       ->condition('module', 'filelink_usage')
       ->execute()
       ->fetchAllKeyed();
 
-    // If the node was deleted remove all usage and cleanup tables.
+    // If the entity was deleted remove all usage and cleanup tables.
     if ($deleted) {
       foreach ($usage_rows as $fid => $count) {
         $file = $file_storage->load($fid);
         if ($file) {
           while ($count-- > 0) {
-            $this->fileUsage->delete($file, 'filelink_usage', 'node', $nid);
+            $this->fileUsage->delete($file, 'filelink_usage', $entity_type_id, $id);
           }
           Cache::invalidateTags(['file:' . $fid]);
         }
       }
 
       $this->database->delete('filelink_usage_matches')
-        ->condition('nid', $nid)
+        ->condition('entity_type', $entity_type_id)
+        ->condition('entity_id', $id)
         ->execute();
 
       $this->database->delete('filelink_usage_scan_status')
-        ->condition('nid', $nid)
+        ->condition('entity_type', $entity_type_id)
+        ->condition('entity_id', $id)
         ->execute();
 
       return;
@@ -169,7 +176,7 @@ class FileLinkUsageManager {
         $file = $file_storage->load($fid);
         if ($file) {
           while ($count-- > 0) {
-            $this->fileUsage->delete($file, 'filelink_usage', 'node', $nid);
+            $this->fileUsage->delete($file, 'filelink_usage', $entity_type_id, $id);
           }
           Cache::invalidateTags(['file:' . $fid]);
         }
@@ -179,17 +186,24 @@ class FileLinkUsageManager {
     // Add usage for new links not yet recorded.
     foreach ($files as $fid => $file) {
       if (!isset($usage_rows[$fid])) {
-        $this->fileUsage->add($file, 'filelink_usage', 'node', $nid);
+        $this->fileUsage->add($file, 'filelink_usage', $entity_type_id, $id);
         Cache::invalidateTags(['file:' . $fid]);
       }
     }
   }
 
   /**
+   * Wrapper for backwards compatibility when reconciling nodes.
+   */
+  public function reconcileNodeUsage(int $nid, bool $deleted = FALSE): void {
+    $this->reconcileEntityUsage('node', $nid, $deleted);
+  }
+
+  /**
    * Cleanup file usage when a node is deleted.
    */
   public function cleanupNode(NodeInterface $node): void {
-    $this->reconcileNodeUsage($node->id(), TRUE);
+    $this->reconcileEntityUsage('node', $node->id(), TRUE);
   }
 
   /**
@@ -202,25 +216,27 @@ class FileLinkUsageManager {
     }
 
     $query = $this->database->select('filelink_usage_matches', 'f')
-      ->fields('f', ['nid'])
+      ->fields('f', ['entity_type', 'entity_id'])
       ->condition('link', $uri);
-    $nids = $query->execute()->fetchCol();
+    $records = $query->execute()->fetchAll();
 
-    if (!$nids) {
+    if (!$records) {
       return;
     }
 
     $usage = $this->fileUsage->listUsage($file);
-    $used_nids = [];
+    $used = [];
     foreach ($usage as $module_usage) {
-      if (!empty($module_usage['node'])) {
-        $used_nids += $module_usage['node'];
+      foreach ($module_usage as $type => $ids) {
+        $used[$type] = ($used[$type] ?? []) + $ids;
       }
     }
 
-    foreach ($nids as $nid) {
-      if (!isset($used_nids[$nid])) {
-        $this->fileUsage->add($file, 'filelink_usage', 'node', $nid);
+    foreach ($records as $record) {
+      $type = $record->entity_type;
+      $id = $record->entity_id;
+      if (empty($used[$type][$id])) {
+        $this->fileUsage->add($file, 'filelink_usage', $type, $id);
         Cache::invalidateTags(['file:' . $file->id()]);
       }
     }
