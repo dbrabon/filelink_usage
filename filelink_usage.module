@@ -53,10 +53,3 @@ function filelink_usage_entity_delete(EntityInterface $entity) {
     \Drupal::service('filelink_usage.manager')->reconcileNodeUsage($entity->id(), TRUE);
   }
 }
-
-/**
- * Implements hook_node_delete().
- */
-function filelink_usage_node_delete(NodeInterface $node) {
-  \Drupal::service('filelink_usage.manager')->reconcileNodeUsage($node->id(), TRUE);
-}
