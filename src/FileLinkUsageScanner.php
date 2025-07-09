@@ -182,7 +182,7 @@ class FileLinkUsageScanner {
       // Record successful scan time.
       // ------------------------------------------------------------------
       $this->database->merge('filelink_usage_scan_status')
-        ->key(['nid', $node->id()])
+        ->key('nid', $node->id())
         ->fields(['scanned' => $this->time->getRequestTime()])
         ->execute();
 
