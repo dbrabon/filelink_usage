@@ -12,60 +12,67 @@ use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\node\NodeInterface;
 use Psr\Log\LoggerInterface;
+use Drupal\filelink_usage\FileLinkUsageNormalizer;
 
 /**
- * Scans content entities for file links and records usage.
+ * Scans content entities for hard-coded file links and records matches.
  */
 class FileLinkUsageScanner {
 
-  protected EntityTypeManagerInterface $entityTypeManager;
-  protected Connection                  $database;
-  protected FileUsageInterface          $fileUsage;
-  protected LoggerInterface             $logger;
-  protected ConfigFactoryInterface      $configFactory;
-  protected FileLinkUsageNormalizer     $normalizer;
-  protected TimeInterface               $time;
-  protected bool                        $matchesHasEntityColumns;
-  protected bool                        $statusHasEntityColumns;
+  /* -----------------------------------------------------------------------
+   * Dependencies
+   * --------------------------------------------------------------------- */
 
-  /* per‑request helper */
-  private array $invalidatedFids = [];
+  protected Connection $database;
+  protected EntityTypeManagerInterface $entityTypeManager;
+  protected FileUsageInterface $fileUsage;
+  protected ConfigFactoryInterface $configFactory;
+  protected LoggerInterface $logger;
+  protected TimeInterface $time;
+  protected FileLinkUsageNormalizer $normalizer;
+
+  /* -----------------------------------------------------------------------
+   * Schema detection
+   * --------------------------------------------------------------------- */
+
+  protected bool $matchesHasEntityColumns;
+  protected bool $statusHasEntityColumns;
 
   public function __construct(
-    EntityTypeManagerInterface $entityTypeManager,
-    Connection                 $database,
-    FileUsageInterface         $fileUsage,
-    LoggerInterface            $logger,
-    ConfigFactoryInterface     $configFactory,
-    FileLinkUsageNormalizer    $normalizer,
-    TimeInterface              $time,
+    Connection $database,
+    EntityTypeManagerInterface $entity_type_manager,
+    FileUsageInterface $file_usage,
+    ConfigFactoryInterface $config_factory,
+    LoggerInterface $logger,
+    TimeInterface $time,
+    FileLinkUsageNormalizer $normalizer
   ) {
-    $this->entityTypeManager = $entityTypeManager;
-    $this->database          = $database;
-    $this->fileUsage         = $fileUsage;
-    $this->logger            = $logger;
-    $this->configFactory     = $configFactory;
-    $this->normalizer        = $normalizer;
-    $this->time              = $time;
-
-    $schema                       = $database->schema();
+    $schema = $database->schema();
     $this->matchesHasEntityColumns = $schema->fieldExists('filelink_usage_matches', 'entity_type')
       && $schema->fieldExists('filelink_usage_matches', 'entity_id');
     $this->statusHasEntityColumns  = $schema->fieldExists('filelink_usage_scan_status', 'entity_type')
       && $schema->fieldExists('filelink_usage_scan_status', 'entity_id');
-  }
 
-  /* Small helper */
-  private function invalidateFile(int $fid): void {
-    if (!isset($this->invalidatedFids[$fid])) {
-      Cache::invalidateTags(['file:' . $fid, 'file_usage:' . $fid]);
-      $this->entityTypeManager->getStorage('file')->resetCache([$fid]);
-      $this->invalidatedFids[$fid] = TRUE;
-    }
+    $this->database           = $database;
+    $this->entityTypeManager  = $entity_type_manager;
+    $this->fileUsage          = $file_usage;
+    $this->configFactory      = $config_factory;
+    $this->logger             = $logger;
+    $this->time               = $time;
+    $this->normalizer         = $normalizer;
   }
 
   /**
-   * Scan one or more content entities for file links.
+   * Scan content for file links.
+   *
+   * @param int[]|NULL $ids
+   *   (optional) Specific entity IDs to scan. If NULL, all entities of the
+   *   given type will be scanned.
+   * @param string $entity_type_id
+   *   (optional) Entity type to scan; defaults to 'node'.
+   *
+   * @return array
+   *   Array of results with 'entity_id' and 'link' for each match found.
    */
   public function scan(?array $ids = NULL, string $entity_type_id = 'node'): array {
     $results = [];
@@ -84,7 +91,9 @@ class FileLinkUsageScanner {
     $count    = 0;
 
     foreach ($entities as $entity) {
-      /* 1  remove prior matches & usage --------------------------------- */
+      /* --------------------------------------------------------------------
+       * 1.  Remove prior matches so the table is repopulated cleanly
+       * ------------------------------------------------------------------ */
       $query = $this->database->select('filelink_usage_matches', 'f')
         ->fields('f', ['link']);
 
@@ -93,6 +102,7 @@ class FileLinkUsageScanner {
               ->condition('entity_id', $entity->id());
       }
       else {
+        // Legacy schema with column "nid".
         $query->condition('nid', $entity->id());
       }
 
@@ -100,17 +110,11 @@ class FileLinkUsageScanner {
       $existing_links = [];
 
       foreach ($links as $link) {
-        $uri  = $this->normalizer->normalize($link);
-        $existing_links[$uri] = TRUE;
-
-        $file_storage = $this->entityTypeManager->getStorage('file');
-        $files        = $file_storage->loadByProperties(['uri' => $uri]);
-        if ($file = ($files ? reset($files) : NULL)) {
-          $this->fileUsage->delete($file, 'filelink_usage', $entity_type_id, $entity->id());
-          $this->invalidateFile($file->id());
-        }
+        $uri                    = $this->normalizer->normalize($link);
+        $existing_links[$uri]   = TRUE;
       }
 
+      /* Delete matches for this entity. */
       $delete = $this->database->delete('filelink_usage_matches');
       if ($this->matchesHasEntityColumns) {
         $delete->condition('entity_type', $entity_type_id)
@@ -121,7 +125,10 @@ class FileLinkUsageScanner {
       }
       $delete->execute();
 
-      /* 2  parse long‑text fields & record links ------------------------ */
+      /* --------------------------------------------------------------------
+       * 2.  Inspect long‑text fields for potential file links
+       * ------------------------------------------------------------------ */
+      $processed_files = [];
       foreach ($entity->getFields() as $field) {
         $type = $field->getFieldDefinition()->getType();
         if ($type !== 'text_long' && $type !== 'text_with_summary') {
@@ -138,6 +145,7 @@ class FileLinkUsageScanner {
             continue;
           }
 
+          // Capture absolute, relative, and stream‑wrapper file URLs.
           preg_match_all(
             '/(public:\/\/[^"\']+|\/sites\/default\/files\/[^"\']+|https?:\/\/[^\/"]+\/sites\/default\/files\/[^"\']+)/i',
             $text,
@@ -152,26 +160,39 @@ class FileLinkUsageScanner {
             $file         = $files ? reset($files) : NULL;
 
             if ($file) {
-              $usage        = $this->fileUsage->listUsage($file);
-              $usage_exists = FALSE;
-
-              foreach ($usage as $module_name => $module_usage) {
-                if (!empty($module_usage[$entity_type_id][$entity->id()])) {
-                  if ($module_name !== 'filelink_usage') {
-                    $this->fileUsage->delete($file, $module_name, $entity_type_id, $entity->id());
-                  }
-                  $usage_exists = TRUE;
-                }
-              }
-
-              if (!$usage_exists) {
-                $this->fileUsage->add($file, 'filelink_usage', $entity_type_id, $entity->id());
-              }
-              $this->invalidateFile($file->id());
+               if (!isset($processed_files[$file->id()])) {
+                 $usage = $this->fileUsage->listUsage($file);
+                 $found_filelink_usage = FALSE;
+                 foreach ($usage as $module_name => $module_usage) {
+                   if (!empty($module_usage[$entity_type_id][$entity->id()])) {
+                     $count = $module_usage[$entity_type_id][$entity->id()];
+                     if ($module_name === 'filelink_usage') {
+                       $found_filelink_usage = TRUE;
+                       if ($count > 1) {
+                         while ($count-- > 1) {
+                           $this->fileUsage->delete($file, 'filelink_usage', $entity_type_id, $entity->id());
+                         }
+                       }
+                     }
+                     else {
+                       // Remove usage entries from other modules for this entity.
+                       while ($count-- > 0) {
+                         $this->fileUsage->delete($file, $module_name, $entity_type_id, $entity->id());
+                       }
+                     }
+                   }
+                 }
+                 if (!$found_filelink_usage) {
+                   $this->fileUsage->add($file, 'filelink_usage', $entity_type_id, $entity->id());
+                 }
+                 Cache::invalidateTags(['file:' . $file->id()]);
+                 $processed_files[$file->id()] = TRUE;
+               }
             }
 
             $is_new_link = !isset($existing_links[$uri]);
 
+            /* Upsert the match row (schema‑aware). */
             $merge = $this->database->merge('filelink_usage_matches');
             if ($this->matchesHasEntityColumns) {
               $merge->keys([
@@ -202,7 +223,9 @@ class FileLinkUsageScanner {
         }
       }
 
-      /* 3  record scan timestamp ---------------------------------------- */
+      /* --------------------------------------------------------------------
+       * 3.  Record successful scan time.
+       * ------------------------------------------------------------------ */
       $merge = $this->database->merge('filelink_usage_scan_status');
       if ($this->statusHasEntityColumns) {
         $merge->keys([
@@ -211,11 +234,15 @@ class FileLinkUsageScanner {
         ]);
       }
       else {
+        // Legacy schema with column "nid".
         $merge->key('nid', $entity->id());
       }
       $merge->fields(['scanned' => $this->time->getRequestTime()])
             ->execute();
 
+      /* --------------------------------------------------------------------
+       * 4.  Progress logging.
+       * ------------------------------------------------------------------ */
       $count++;
       if ($verbose && $count % 100 === 0) {
         $this->logger->info(
@@ -225,16 +252,28 @@ class FileLinkUsageScanner {
       }
     }
 
+    /* ----------------------------------------------------------------------
+     * Summary logging
+     * -------------------------------------------------------------------- */
+    $ids_list = implode(', ', array_keys($entities));
+    if (count($entities) === 1) {
+      $this->logger->info(
+        'Scanned @type @ids for file links.',
+        ['@ids' => $ids_list, '@type' => $entity_type_id]
+      );
+    }
+    else {
+      $this->logger->info(
+        'Scanned @count @type entities for file links: @ids.',
+        [
+          '@count' => count($entities),
+          '@ids'   => $ids_list,
+          '@type'  => $entity_type_id,
+        ]
+      );
+    }
+
     return $results;
-  }
-
-  /* Convenience wrappers */
-  public function scanNode(NodeInterface $node): array {
-    return $this->scan([$node->id()], 'node');
-  }
-
-  public function scanEntity(ContentEntityInterface $entity): array {
-    return $this->scan([$entity->id()], $entity->getEntityTypeId());
   }
 
 }
