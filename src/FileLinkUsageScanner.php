@@ -169,7 +169,6 @@ class FileLinkUsageScanner {
     }
     return $results;
   }
-  }
 
 
   /**

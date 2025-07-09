@@ -120,6 +120,51 @@ class FileLinkUsageNodeHooksTest extends KernelTestBase {
   }
 
   /**
+   * Changing a link replaces usage from the old file to the new file.
+   */
+  public function testUpdateReplacesFileUsage(): void {
+    $uri1 = 'public://hook_replace1.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri1), 'txt');
+    $file1 = File::create([
+      'uri' => $uri1,
+      'filename' => 'hook_replace1.txt',
+    ]);
+    $file1->save();
+
+    $uri2 = 'public://hook_replace2.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri2), 'txt');
+    $file2 = File::create([
+      'uri' => $uri2,
+      'filename' => 'hook_replace2.txt',
+    ]);
+    $file2->save();
+
+    $body = '<a href="/sites/default/files/hook_replace1.txt">Download</a>';
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Replace usage',
+      'body' => [
+        'value' => $body,
+        'format' => 'plain_text',
+      ],
+    ]);
+    $node->save();
+
+    // Usage should reference the first file.
+    $usage1 = $this->container->get('file.usage')->listUsage($file1);
+    $this->assertArrayHasKey($node->id(), $usage1['filelink_usage']['node']);
+
+    // Update to link to the second file.
+    $node->body->value = '<a href="/sites/default/files/hook_replace2.txt">Download</a>';
+    $node->save();
+
+    $usage1 = $this->container->get('file.usage')->listUsage($file1);
+    $this->assertEmpty($usage1['filelink_usage']['node'] ?? []);
+    $usage2 = $this->container->get('file.usage')->listUsage($file2);
+    $this->assertArrayHasKey($node->id(), $usage2['filelink_usage']['node']);
+  }
+
+  /**
    * Ensures node delete removes usage entries via hook_node_delete().
    */
   public function testDeleteHookRemovesUsage(): void {
