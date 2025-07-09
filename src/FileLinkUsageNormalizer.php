@@ -12,6 +12,11 @@ class FileLinkUsageNormalizer {
     $link = Html::decodeEntities($link);
     $link = trim($link, " \t\n\r\0\x0B\"'");
 
+    // If already a public:// URI, return as-is.
+    if (strpos($link, 'public://') === 0) {
+      return $link;
+    }
+
     // Strip hostnames from absolute URLs.
     if (preg_match('#^https?://[^/]+(/.*)$#i', $link, $m)) {
       $link = $m[1];
