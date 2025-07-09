@@ -6,14 +6,19 @@ declare(strict_types=1);
  */
 function filelink_usage_schema() {
   $schema['filelink_usage_matches'] = [
-    'description' => 'Stores detected file links in node text fields.',
+    'description' => 'Stores detected file links in content entity text fields.',
     'fields' => [
       'id' => [
         'type' => 'serial',
         'unsigned' => TRUE,
         'not null' => TRUE,
       ],
-      'nid' => [
+      'entity_type' => [
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ],
+      'entity_id' => [
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
@@ -30,18 +35,24 @@ function filelink_usage_schema() {
     ],
     'primary key' => ['id'],
     'indexes' => [
-      'nid' => ['nid'],
+      'entity_type' => ['entity_type'],
+      'entity_id' => ['entity_id'],
       'link' => ['link'],
     ],
     'unique keys' => [
-      'nid_link' => ['nid', 'link'],
+      'entity_link' => ['entity_type', 'entity_id', 'link'],
     ],
   ];
 
   $schema['filelink_usage_scan_status'] = [
-    'description' => 'Tracks the last successful scan time for each node.',
+    'description' => 'Tracks the last successful scan time for each content entity.',
     'fields' => [
-      'nid' => [
+      'entity_type' => [
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ],
+      'entity_id' => [
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
@@ -51,7 +62,7 @@ function filelink_usage_schema() {
         'not null' => TRUE,
       ],
     ],
-    'primary key' => ['nid'],
+    'primary key' => ['entity_type', 'entity_id'],
   ];
   return $schema;
 }
