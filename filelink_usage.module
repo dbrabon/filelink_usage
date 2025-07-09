@@ -1,56 +1,60 @@
 <?php
-declare(strict_types=1);
+/**
+ * @file
+ * Runtime hooks for the File Link Usage module.
+ */
 
 use Drupal\Core\Entity\EntityInterface;
-use Drupal\Core\Entity\ContentEntityInterface;
-use Drupal\node\NodeInterface;
 use Drupal\file\FileInterface;
 
 /**
- * Implements hook_cron().
+ * Scan a new entity and reconcile its file usage.
  */
-function filelink_usage_cron() {
-  \Drupal::service('filelink_usage.cron')->run();
+function filelink_usage_entity_insert(EntityInterface $entity): void {
+  _filelink_usage_scan_and_reconcile($entity);
 }
 
 /**
- * Mark a node as needing a rescan.
+ * Re‑scan an edited entity and reconcile its file usage.
  */
-function filelink_usage_mark_for_rescan(NodeInterface $node) {
-  \Drupal::service('filelink_usage.manager')->markForRescan($node);
+function filelink_usage_entity_update(EntityInterface $entity): void {
+  _filelink_usage_scan_and_reconcile($entity);
 }
 
 /**
- * Implements hook_entity_insert().
+ * Remove all usage when an entity is deleted.
  */
-function filelink_usage_entity_insert(EntityInterface $entity) {
-  if ($entity instanceof FileInterface) {
-    \Drupal::service('filelink_usage.manager')->addUsageForFile($entity);
-  }
-  elseif ($entity instanceof ContentEntityInterface) {
-    \Drupal::service('filelink_usage.scanner')->scan([$entity->id()], $entity->getEntityTypeId());
-    \Drupal::service('filelink_usage.manager')->reconcileEntityUsage($entity->getEntityTypeId(), (int) $entity->id());
-  }
+function filelink_usage_entity_delete(EntityInterface $entity): void {
+  \Drupal::service('filelink_usage.manager')
+    ->reconcileEntityUsage($entity->getEntityTypeId(), $entity->id(), TRUE);
 }
 
 /**
- * Implements hook_entity_update().
+ * When a *new* managed file is created, add usage rows immediately
+ * if that file was already referenced by hard‑coded links.
  */
-function filelink_usage_entity_update(EntityInterface $entity) {
-  if ($entity instanceof FileInterface) {
-    \Drupal::service('filelink_usage.manager')->addUsageForFile($entity);
-  }
-  elseif ($entity instanceof ContentEntityInterface) {
-    \Drupal::service('filelink_usage.scanner')->scan([$entity->id()], $entity->getEntityTypeId());
-    \Drupal::service('filelink_usage.manager')->reconcileEntityUsage($entity->getEntityTypeId(), (int) $entity->id());
-  }
+function filelink_usage_file_insert(FileInterface $file): void {
+  \Drupal::service('filelink_usage.manager')->addUsageForFile($file);
 }
 
 /**
- * Implements hook_entity_delete().
+ * Cron entry point – runs the scheduled full scan.
  */
-function filelink_usage_entity_delete(EntityInterface $entity) {
-  if ($entity instanceof ContentEntityInterface && !$entity instanceof FileInterface) {
-    \Drupal::service('filelink_usage.manager')->reconcileEntityUsage($entity->getEntityTypeId(), (int) $entity->id(), TRUE);
-  }
+function filelink_usage_cron(): void {
+  \Drupal::service('filelink_usage.manager')->runCron();
+}
+
+/* -------------------------------------------------------------------------- */
+/* Helper                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Scan an entity and reconcile its usage (create / edit cases).
+ */
+function _filelink_usage_scan_and_reconcile(EntityInterface $entity): void {
+  $scanner = \Drupal::service('filelink_usage.scanner');
+  $manager = \Drupal::service('filelink_usage.manager');
+
+  $scanner->scan([$entity->id()], $entity->getEntityTypeId());
+  $manager->reconcileEntityUsage($entity->getEntityTypeId(), $entity->id());
 }

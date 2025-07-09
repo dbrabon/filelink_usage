@@ -1,11 +1,6 @@
-name: 'File Link Usage'
+name: File Link Usage
 type: module
-description: 'Scans text fields for file links and tracks usage based on managed files.'
+description: Tracks hard‑coded file links and mirrors them in file_usage.
+core_version_requirement: '^10 || ^11'
 package: Media
 version: 1.0.1
-core_version_requirement: ^10 || ^11
-php: ^8.1
-dependencies:
-  - file
-  - node
-

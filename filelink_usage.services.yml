@@ -1,22 +1,30 @@
 services:
+  logger.channel.filelink_usage:
+    class: Drupal\Core\Logger\LoggerChannel
+    factory: ['@logger.factory', get]
+    arguments: ['filelink_usage']
+
   filelink_usage.normalizer:
     class: Drupal\filelink_usage\FileLinkUsageNormalizer
 
   filelink_usage.scanner:
     class: Drupal\filelink_usage\FileLinkUsageScanner
-    arguments: ['@entity_type.manager', '@database', '@file.usage', '@logger.channel.filelink_usage', '@config.factory', '@filelink_usage.normalizer', '@datetime.time']
-    tags:
-      - { name: default }
+    arguments:
+      - '@entity_type.manager'
+      - '@database'
+      - '@file.usage'
+      - '@logger.channel.filelink_usage'
+      - '@config.factory'
+      - '@filelink_usage.normalizer'
+      - '@datetime.time'
 
   filelink_usage.manager:
     class: Drupal\filelink_usage\FileLinkUsageManager
-    arguments: ['@database', '@config.factory', '@datetime.time', '@filelink_usage.scanner', '@file.usage', '@entity_type.manager', '@filelink_usage.normalizer']
-
-  filelink_usage.cron:
-    class: Drupal\filelink_usage\FileLinkUsageCron
-    arguments: ['@filelink_usage.manager']
-
-  logger.channel.filelink_usage:
-    class: Drupal\Core\Logger\LoggerChannel
-    factory: 'logger.factory:get'
-    arguments: ['filelink_usage']
+    arguments:
+      - '@database'
+      - '@config.factory'
+      - '@datetime.time'
+      - '@filelink_usage.scanner'
+      - '@file.usage'
+      - '@entity_type.manager'
+      - '@filelink_usage.normalizer'
