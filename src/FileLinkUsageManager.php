@@ -18,6 +18,9 @@ use Drupal\file\FileInterface;
  */
 class FileLinkUsageManager {
 
+  /* --------------------------------------------------------------------- */
+  /* Services & state                                                      */
+  /* --------------------------------------------------------------------- */
   protected Connection                  $database;
   protected ConfigFactoryInterface      $configFactory;
   protected TimeInterface               $time;
@@ -25,8 +28,13 @@ class FileLinkUsageManager {
   protected FileUsageInterface          $fileUsage;
   protected EntityTypeManagerInterface  $entityTypeManager;
   protected FileLinkUsageNormalizer     $normalizer;
-  protected bool                        $matchesHasEntityColumns;
-  protected bool                        $statusHasEntityColumns;
+
+  /* Schema awareness. */
+  protected bool $matchesHasEntityColumns;
+  protected bool $statusHasEntityColumns;
+
+  /* Per‑request cache‑tag helper. */
+  private array $invalidatedFids = [];
 
   public function __construct(
     Connection                 $database,
@@ -53,10 +61,106 @@ class FileLinkUsageManager {
   }
 
   /* --------------------------------------------------------------------- */
-  /* (Only the tag‑invalidations changed below.)                           */
+  /* Small helper – invalidate just once per request.                      */
   /* --------------------------------------------------------------------- */
+  private function invalidateFile(int $fid): void {
+    if (!isset($this->invalidatedFids[$fid])) {
+      Cache::invalidateTags(['file:' . $fid, 'file_usage:' . $fid]);
+      $this->entityTypeManager->getStorage('file')->resetCache([$fid]);
+      $this->invalidatedFids[$fid] = TRUE;
+    }
+  }
 
+  /* --------------------------------------------------------------------- */
+  /* Public ‑ cron orchestration (restored)                                */
+  /* --------------------------------------------------------------------- */
+  public function runCron(): void {
+    $config      = $this->configFactory->getEditable('filelink_usage.settings');
+    $frequency   = $config->get('scan_frequency');
+    $last_scan   = (int) $config->get('last_scan');
+    $intervals   = [
+      'every'   => 0,
+      'hourly'  => 3600,
+      'daily'   => 86400,
+      'weekly'  => 604800,
+      'monthly' => 2592000,
+      'yearly'  => 31536000,
+    ];
+    $interval    = $intervals[$frequency] ?? 31536000;
+    $now         = $this->time->getRequestTime();
+
+    $match_count = (int) $this->database->select('filelink_usage_matches')
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+    $force_rescan = $match_count === 0;
+
+    /* Exit early if cron is not due (and not forced). */
+    if (!$force_rescan && $interval && $last_scan + $interval > $now) {
+      return;
+    }
+
+    /* Decide which nodes to scan. */
+    if (!$force_rescan) {
+      $threshold = $interval ? $now - $interval : $now;
+      $query     = $this->database->select('node_field_data', 'n');
+
+      if ($this->statusHasEntityColumns) {
+        $query->leftJoin(
+          'filelink_usage_scan_status',
+          's',
+          'n.nid = s.entity_id AND s.entity_type = :t',
+          [':t' => 'node']
+        );
+      }
+      else {
+        $query->leftJoin('filelink_usage_scan_status', 's', 'n.nid = s.nid');
+      }
+
+      $query->fields('n', ['nid']);
+      $or = $query->orConditionGroup()
+        ->isNull('s.scanned')
+        ->condition('s.scanned', $threshold, '<');
+      $nids = $query->condition($or)->execute()->fetchCol();
+    }
+    else {
+      $nids = $this->database->select('node_field_data', 'n')
+        ->fields('n', ['nid'])
+        ->execute()
+        ->fetchCol();
+    }
+
+    /* Scan & reconcile. */
+    if ($nids) {
+      $this->scanner->scan($nids);
+      foreach ($nids as $nid) {
+        $this->reconcileNodeUsage((int) $nid);
+      }
+    }
+
+    $config->set('last_scan', $now)->save();
+  }
+
+  /* --------------------------------------------------------------------- */
+  /* Public – mark for rescan helpers (unchanged)                          */
+  /* --------------------------------------------------------------------- */
+  public function markForRescan(ContentEntityInterface $entity): void {
+    $key = $this->statusHasEntityColumns ? 'entity_id' : 'nid';
+
+    $this->database->delete('filelink_usage_scan_status')
+      ->condition($key, $entity->id())
+      ->execute();
+  }
+
+  public function markAllForRescan(): void {
+    $this->database->truncate('filelink_usage_scan_status')->execute();
+  }
+
+  /* --------------------------------------------------------------------- */
+  /* Public – reconcile usage for one entity                               */
+  /* --------------------------------------------------------------------- */
   public function reconcileEntityUsage(string $entity_type_id, int $id, bool $deleted = FALSE): void {
+    /* ----- 1. links recorded for entity -------------------------------- */
     $query = $this->database->select('filelink_usage_matches', 'f')
       ->fields('f', ['link']);
 
@@ -66,7 +170,7 @@ class FileLinkUsageManager {
     }
     else {
       if ($entity_type_id !== 'node') {
-        return;
+        return; // legacy schema only covers nodes
       }
       $query->condition('nid', $id);
     }
@@ -83,6 +187,7 @@ class FileLinkUsageManager {
       }
     }
 
+    /* ----- 2. current usage rows -------------------------------------- */
     $usage_rows = $this->database->select('file_usage', 'fu')
       ->fields('fu', ['fid', 'count'])
       ->condition('type', $entity_type_id)
@@ -91,21 +196,18 @@ class FileLinkUsageManager {
       ->execute()
       ->fetchAllKeyed();
 
-    /* -- Entity deleted -------------------------------------------------- */
+    /* ----- 3. entity deleted – purge everything ----------------------- */
     if ($deleted) {
       foreach ($usage_rows as $fid => $count) {
-        $file = $file_storage->load($fid);
-        if ($file) {
+        if ($file = $file_storage->load($fid)) {
           while ($count-- > 0) {
             $this->fileUsage->delete($file, 'filelink_usage', $entity_type_id, $id);
           }
-          Cache::invalidateTags([
-            'file:' . $fid,
-            'file_usage:' . $fid,
-          ]);
+          $this->invalidateFile($fid);
         }
       }
 
+      /* remove matches & status rows */
       $del_matches = $this->database->delete('filelink_usage_matches');
       $del_status  = $this->database->delete('filelink_usage_scan_status');
 
@@ -119,44 +221,31 @@ class FileLinkUsageManager {
         $del_matches->condition('nid', $id);
         $del_status->condition('nid', $id);
       }
-
       $del_matches->execute();
       $del_status->execute();
       return;
     }
 
-    /* -- Remove stale usage --------------------------------------------- */
+    /* ----- 4. remove stale usage -------------------------------------- */
     foreach ($usage_rows as $fid => $count) {
-      if (!isset($files[$fid])) {
-        $file = $file_storage->load($fid);
-        if ($file) {
-          while ($count-- > 0) {
-            $this->fileUsage->delete($file, 'filelink_usage', $entity_type_id, $id);
-          }
-          Cache::invalidateTags([
-            'file:' . $fid,
-            'file_usage:' . $fid,
-          ]);
+      if (!isset($files[$fid]) && ($file = $file_storage->load($fid))) {
+        while ($count-- > 0) {
+          $this->fileUsage->delete($file, 'filelink_usage', $entity_type_id, $id);
         }
+        $this->invalidateFile($fid);
       }
     }
 
-    /* -- Add missing usage ---------------------------------------------- */
+    /* ----- 5. add missing usage --------------------------------------- */
     foreach ($files as $fid => $file) {
       if (!isset($usage_rows[$fid])) {
         $this->fileUsage->add($file, 'filelink_usage', $entity_type_id, $id);
-        Cache::invalidateTags([
-          'file:' . $fid,
-          'file_usage:' . $fid,
-        ]);
+        $this->invalidateFile($fid);
       }
     }
   }
 
-  /* --------------------------------------------------------------------- */
-  /* Unchanged helper methods – only tag lines updated in loops above.     */
-  /* --------------------------------------------------------------------- */
-
+  /* Convenience wrappers */
   public function reconcileNodeUsage(int $nid, bool $deleted = FALSE): void {
     $this->reconcileEntityUsage('node', $nid, $deleted);
   }
@@ -165,11 +254,15 @@ class FileLinkUsageManager {
     $this->reconcileEntityUsage('node', $node->id(), TRUE);
   }
 
+  /* --------------------------------------------------------------------- */
+  /* Hook helper – new file created                                        */
+  /* --------------------------------------------------------------------- */
   public function addUsageForFile(FileInterface $file): void {
     if (strpos($file->getFileUri(), 'public://') !== 0) {
       return;
     }
 
+    /* which entities link to this file? */
     $query = $this->database->select('filelink_usage_matches', 'f')
       ->condition('link', $file->getFileUri());
 
@@ -203,13 +296,9 @@ class FileLinkUsageManager {
       $id   = $record->entity_id;
       if (empty($used[$type][$id])) {
         $this->fileUsage->add($file, 'filelink_usage', $type, $id);
-        Cache::invalidateTags([
-          'file:' . $file->id(),
-          'file_usage:' . $file->id(),
-        ]);
+        $this->invalidateFile($file->id());
       }
     }
   }
 
-  /* runCron, markForRescan, etc. are unchanged and omitted here for brevity */
 }
