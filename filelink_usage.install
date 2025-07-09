@@ -197,3 +197,88 @@ function filelink_usage_update_8005() {
   }
   $config->save();
 }
+
+/**
+ * Add entity type support to match and scan tables.
+ */
+function filelink_usage_update_8006() {
+  $schema = \Drupal::database()->schema();
+  $connection = \Drupal::database();
+
+  // Update filelink_usage_matches table.
+  if ($schema->tableExists('filelink_usage_matches')) {
+    if (!$schema->fieldExists('filelink_usage_matches', 'entity_type')) {
+      $schema->addField('filelink_usage_matches', 'entity_type', [
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => 'node',
+      ]);
+      $connection->update('filelink_usage_matches')
+        ->fields(['entity_type' => 'node'])
+        ->execute();
+    }
+    if ($schema->fieldExists('filelink_usage_matches', 'nid')) {
+      $schema->changeField('filelink_usage_matches', 'nid', 'entity_id', [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ]);
+    }
+    elseif (!$schema->fieldExists('filelink_usage_matches', 'entity_id')) {
+      $schema->addField('filelink_usage_matches', 'entity_id', [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ]);
+    }
+    if ($schema->indexExists('filelink_usage_matches', 'nid')) {
+      $schema->dropIndex('filelink_usage_matches', 'nid');
+    }
+    if ($schema->uniqueKeyExists('filelink_usage_matches', 'nid_link')) {
+      $schema->dropUniqueKey('filelink_usage_matches', 'nid_link');
+    }
+    if (!$schema->indexExists('filelink_usage_matches', 'entity_type')) {
+      $schema->addIndex('filelink_usage_matches', 'entity_type', ['entity_type']);
+    }
+    if (!$schema->indexExists('filelink_usage_matches', 'entity_id')) {
+      $schema->addIndex('filelink_usage_matches', 'entity_id', ['entity_id']);
+    }
+    if (!$schema->uniqueKeyExists('filelink_usage_matches', 'entity_link')) {
+      $schema->addUniqueKey('filelink_usage_matches', 'entity_link', ['entity_type', 'entity_id', 'link']);
+    }
+  }
+
+  // Update filelink_usage_scan_status table.
+  if ($schema->tableExists('filelink_usage_scan_status')) {
+    if (!$schema->fieldExists('filelink_usage_scan_status', 'entity_type')) {
+      $schema->addField('filelink_usage_scan_status', 'entity_type', [
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => 'node',
+      ]);
+      $connection->update('filelink_usage_scan_status')
+        ->fields(['entity_type' => 'node'])
+        ->execute();
+    }
+    if ($schema->fieldExists('filelink_usage_scan_status', 'nid')) {
+      $schema->changeField('filelink_usage_scan_status', 'nid', 'entity_id', [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ]);
+    }
+    elseif (!$schema->fieldExists('filelink_usage_scan_status', 'entity_id')) {
+      $schema->addField('filelink_usage_scan_status', 'entity_id', [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ]);
+    }
+    $schema->dropPrimaryKey('filelink_usage_scan_status');
+    $schema->addPrimaryKey('filelink_usage_scan_status', ['entity_type', 'entity_id']);
+  }
+}
