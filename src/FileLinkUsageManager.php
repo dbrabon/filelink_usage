@@ -136,14 +136,14 @@ class FileLinkUsageManager {
     if ($entity_type_id === 'node') {
       if ($this->statusHasEntityColumns) {
         $this->database->merge('filelink_usage_scan_status')
-          ->key(['entity_type' => 'node', 'entity_id' => $entity_id])
+          ->keys(['entity_type' => 'node', 'entity_id' => $entity_id])
           ->fields(['scanned' => 0])
           ->execute();
       }
       else {
         // Legacy: key on nid for older schema.
         $this->database->merge('filelink_usage_scan_status')
-          ->key(['nid' => $entity_id])
+          ->keys(['nid' => $entity_id])
           ->fields(['scanned' => 0])
           ->execute();
       }

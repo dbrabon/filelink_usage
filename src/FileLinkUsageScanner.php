@@ -146,7 +146,7 @@ class FileLinkUsageScanner {
       $merge = $this->database->merge($table);
 
       if ($table === 'filelink_usage_matches') {
-        $merge->key([
+        $merge->keys([
           'entity_type' => $entity->getEntityTypeId(),
           'entity_id'   => $entity->id(),
           'link'        => $file->getFileUri(),
