@@ -61,6 +61,13 @@ class FileLinkUsageScanner {
   }
 
   /**
+   * Convenience wrapper to scan a single node.
+   */
+  public function scanNode(NodeInterface $node): void {
+    $this->scan(['node' => [$node->id()]]);
+  }
+
+  /**
    * Scan a single entity.
    *
    * @param \Drupal\Core\Entity\EntityInterface $entity
