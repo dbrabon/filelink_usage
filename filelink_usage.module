@@ -12,9 +12,10 @@ use Drupal\file\FileInterface;
  * Responds to entity insert events.
  */
 function filelink_usage_entity_insert(\Drupal\Core\Entity\EntityInterface $entity) {
-  if ($entity instanceof NodeInterface) {
-    // Scan new or updated node content for file links.
-    \Drupal::service('filelink_usage.scanner')->scanNode($entity);
+  // If content entity of type node, block, taxonomy or comment, scan for file links.
+  $entity_type = $entity->getEntityType()->id();
+  if (in_array($entity_type, ['node', 'block_content', 'taxonomy_term', 'comment'])) {
+    \Drupal::service('filelink_usage.scanner')->scanEntity($entity);
   }
   elseif ($entity instanceof FileInterface) {
     // A new file was added; update usage if this file matches any known links.
@@ -28,9 +29,13 @@ function filelink_usage_entity_insert(\Drupal\Core\Entity\EntityInterface $entit
 function filelink_usage_entity_update(\Drupal\Core\Entity\EntityInterface $entity) {
   if ($entity instanceof NodeInterface) {
     // Rescan updated node content for file links.
-    \Drupal::service('filelink_usage.scanner')->scanNode($entity);
+    \Drupal::service('filelink_usage.scanner')->scanEntity($entity);
   }
-  // (File updates typically don't need scanning; file usage changes are handled on insert or through node rescans.)
+  elseif ($entity->getEntityType()->id() === 'block_content' || $entity->getEntityType()->id() === 'taxonomy_term' || $entity->getEntityType()->id() === 'comment') {
+    // Rescan updated block, taxonomy term, or comment content for file links.
+    \Drupal::service('filelink_usage.scanner')->scanEntity($entity);
+  }
+  // (File updates typically don't need scanning; file usage changes are handled on insert or through content rescans.)
 }
 
 /**
@@ -45,12 +50,12 @@ function filelink_usage_entity_delete(\Drupal\Core\Entity\EntityInterface $entit
     // Clean up file usage records when a file is deleted, if necessary.
     \Drupal::service('filelink_usage.manager')->removeFileUsage($entity);
   }
-}
-
-/**
- * Implements hook_cron().
- */
-function filelink_usage_cron() {
-  // Trigger the manager to perform scheduled scans (e.g., rescan marked nodes, purge old records).
-  \Drupal::service('filelink_usage.manager')->runCron();
+  else {
+    // For other content entities (blocks, taxonomy terms, comments), remove file usage references.
+    $type = $entity->getEntityType()->id();
+    if ($type === 'block_content') {
+      $type = 'block';
+    }
+    \Drupal::service('filelink_usage.manager')->reconcileEntityUsage($type, $entity->id(), TRUE);
+  }
 }

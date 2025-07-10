@@ -9,10 +9,9 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\file\FileInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\Component\Datetime\TimeInterface;
-use Drupal\node\NodeInterface;
 
 /**
- * Manages file usage records for hard-coded file links.
+ * Manages file link usage records and cron scanning operations.
  */
 class FileLinkUsageManager {
 
@@ -44,15 +43,13 @@ class FileLinkUsageManager {
     $this->fileUsage = $fileUsage;
     $this->entityTypeManager = $entityTypeManager;
     $this->normalizer = $normalizer;
-
-    $schema = $database->schema();
-    // Determine if database tables have new entity reference columns.
-    $this->statusHasEntityColumns = $schema->fieldExists('filelink_usage_scan_status', 'entity_id');
-    $this->matchesHasEntityColumns = $schema->fieldExists('filelink_usage_matches', 'entity_type');
+    // Detect if DB schema has new entity_type columns.
+    $this->statusHasEntityColumns = $this->database->schema()->fieldExists('filelink_usage_scan_status', 'entity_type');
+    $this->matchesHasEntityColumns = $this->database->schema()->fieldExists('filelink_usage_matches', 'entity_type');
   }
 
   /**
-   * Runs scheduled scans on cron, based on configured frequency.
+   * Execute the cron scan for pending content.
    */
   public function runCron(): void {
     $config    = $this->configFactory->getEditable('filelink_usage.settings');
@@ -81,22 +78,15 @@ class FileLinkUsageManager {
       return;
     }
 
-    // Determine which nodes need scanning.
+    // Determine which content needs scanning.
     if (!$force_rescan) {
       // Find nodes not scanned yet or older than the interval.
       $threshold = $interval ? $now - $interval : $now;
       $query = $this->database->select('node_field_data', 'n');
       if ($this->statusHasEntityColumns) {
-        // Join with scan status table by entity reference.
-        $query->leftJoin(
-          'filelink_usage_scan_status',
-          's',
-          'n.nid = s.entity_id AND s.entity_type = :t',
-          [':t' => 'node']
-        );
+        $query->leftJoin('filelink_usage_scan_status', 's', 'n.nid = s.entity_id AND s.entity_type = :t', [':t' => 'node']);
       }
       else {
-        // Legacy join on older scan_status without entity_type.
         $query->leftJoin('filelink_usage_scan_status', 's', 'n.nid = s.nid');
       }
       $query->fields('n', ['nid']);
@@ -104,32 +94,51 @@ class FileLinkUsageManager {
         ->isNull('s.scanned')
         ->condition('s.scanned', $threshold, '<');
       $nids = $query->condition($or)->execute()->fetchCol();
+      $block_ids = $term_ids = $comment_ids = [];
     }
     else {
-      // Force full scan: get all node IDs.
+      // Force full scan: get all content IDs.
       $nids = $this->database->select('node_field_data', 'n')
         ->fields('n', ['nid'])
         ->execute()
         ->fetchCol();
+      $block_ids = $this->database->select('block_content_field_data', 'b')
+        ->fields('b', ['id'])
+        ->execute()
+        ->fetchCol();
+      $term_ids = $this->database->select('taxonomy_term_field_data', 't')
+        ->fields('t', ['tid'])
+        ->execute()
+        ->fetchCol();
+      $comment_ids = $this->database->select('comment_field_data', 'c')
+        ->fields('c', ['cid'])
+        ->execute()
+        ->fetchCol();
     }
 
-      // Perform the scan and reconcile usage for each affected node.
-      if (!empty($nids)) {
-        // Scanner::scan() expects entity IDs keyed by type.  Previously the
-        // list of node IDs was passed directly, resulting in numeric keys and
-        // an invalid entity type "0".  Wrap the IDs using the node entity type
-        // to avoid PluginNotFoundException.
-        $this->scanner->scan(['node' => $nids]);
-        foreach ($nids as $nid) {
-          $this->reconcileNodeUsage((int) $nid);
-        }
-      }
+    // Perform the scan on all pending entities.
+    $entities_to_scan = [];
+    if (!empty($nids)) {
+      $entities_to_scan['node'] = $nids;
+    }
+    if (!empty($block_ids)) {
+      $entities_to_scan['block_content'] = $block_ids;
+    }
+    if (!empty($term_ids)) {
+      $entities_to_scan['taxonomy_term'] = $term_ids;
+    }
+    if (!empty($comment_ids)) {
+      $entities_to_scan['comment'] = $comment_ids;
+    }
+    if (!empty($entities_to_scan)) {
+      $this->scanner->scan($entities_to_scan);
+    }
     // Update the last scan timestamp.
     $config->set('last_scan', $now)->save();
   }
 
   /**
-   * Marks a node for rescan (public API for other parts of the module).
+   * Marks an entity for rescan (public API if needed elsewhere).
    */
   public function markEntityForScan(string $entity_type_id, int $entity_id): void {
     // Insert or update scan status to indicate a rescan is needed (scanned = 0).
@@ -141,34 +150,23 @@ class FileLinkUsageManager {
           ->execute();
       }
       else {
-        // Legacy: key on nid for older schema.
+        // Legacy table without entity_type column.
         $this->database->merge('filelink_usage_scan_status')
           ->keys(['nid' => $entity_id])
           ->fields(['scanned' => 0])
           ->execute();
       }
     }
+    else {
+      // For other entity types, we currently only track usage at scan time.
+      // (Could extend to store scan status per entity type as well.)
+    }
   }
 
   /**
-   * Reconcile (synchronize) usage records for a node, optionally on deletion.
-   *
-   * @param int $nid
-   *   Node ID.
-   * @param bool $deleted
-   *   TRUE if the node was deleted (remove all its usage records).
+   * Removes usage records when a node is deleted.
    */
-  public function reconcileNodeUsage(int $nid, bool $deleted = FALSE): void {
-    $this->reconcileEntityUsage('node', $nid, $deleted);
-  }
-
-  /**
-   * Cleans up usage records when a node is deleted.
-   *
-   * @param \Drupal\node\NodeInterface $node
-   *   The node that was deleted.
-   */
-  public function cleanupNode(NodeInterface $node): void {
+  public function cleanupNode(\Drupal\node\NodeInterface $node): void {
     $this->reconcileEntityUsage('node', $node->id(), TRUE);
   }
 
@@ -182,7 +180,7 @@ class FileLinkUsageManager {
     // Remove all usage entries for this file from the file usage service.
     $usage = $this->fileUsage->listUsage($file);
     if (!empty($usage['filelink_usage'])) {
-      // For each entity referencing this file via filelink_usage, remove the usage.
+      // For each entity referencing this file via filelink_usage, remove all usage counts.
       foreach ($usage['filelink_usage'] as $entity_type => $ids) {
         foreach ($ids as $entity_id => $count) {
           while ($count-- > 0) {
@@ -193,71 +191,79 @@ class FileLinkUsageManager {
     }
     // Remove all records from our matches table for this file.
     $delete = $this->database->delete('filelink_usage_matches');
-    if ($this->matchesHasEntityColumns && $this->database->schema()->fieldExists('filelink_usage_matches', 'fid')) {
-      // If the matches table has a fid column (new schema), use it.
-      $delete->condition('fid', $file->id());
+    if ($this->matchesHasEntityColumns && $this->database->schema()->fieldExists('filelink_usage_matches', 'link')) {
+      $delete->condition('link', $file->getFileUri());
     }
     else {
-      // Otherwise, use the URI/link field to identify records.
-      $delete->condition($this->matchesHasEntityColumns && $this->database->schema()->fieldExists('filelink_usage_matches', 'uri') ? 'uri' : 'link', $file->getFileUri());
+      // Legacy schema: only track by node (nid).
+      $delete->condition('link', $file->getFileUri());
     }
     $delete->execute();
   }
 
   /**
-   * Reconcile usage records for a given content entity (generic helper).
+   * Reconciles file usage records for an entity, removing or scheduling as needed.
    *
    * @param string $entity_type_id
-   *   Entity type (e.g., 'node').
+   *   The entity type (e.g., 'node', 'block', 'taxonomy_term', 'comment').
    * @param int $entity_id
-   *   Entity ID.
+   *   The entity ID.
    * @param bool $deleted
-   *   TRUE if the entity was deleted (remove all usage).
+   *   TRUE if the entity was deleted, FALSE if just updating.
    */
   public function reconcileEntityUsage(string $entity_type_id, int $entity_id, bool $deleted = FALSE): void {
-    // If entity was deleted, remove all its usage entries.
     if ($deleted) {
-      $this->database->delete('filelink_usage_matches')
-        ->condition('entity_type', $entity_type_id)
-        ->condition('entity_id', $entity_id)
-        ->execute();
+      // Remove all file usage entries for this entity and its file links.
+      $table = $this->database->schema()->tableExists('filelink_usage_matches') ? 'filelink_usage_matches' : 'filelink_usage';
+      $links = [];
+      if ($table === 'filelink_usage_matches') {
+        $links = $this->database->select('filelink_usage_matches', 'f')
+          ->fields('f', ['link'])
+          ->condition('entity_type', $entity_type_id)
+          ->condition('entity_id', $entity_id)
+          ->execute()
+          ->fetchCol();
+      }
+      else {
+        if ($entity_type_id === 'node') {
+          $links = $this->database->select('filelink_usage', 'f')
+            ->fields('f', ['link'])
+            ->condition('nid', $entity_id)
+            ->execute()
+            ->fetchCol();
+        }
+      }
+      foreach ($links as $link) {
+        /** @var \Drupal\file\FileInterface $file */
+        $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $link]);
+        $file = $files ? reset($files) : NULL;
+        if ($file) {
+          $usage = $this->fileUsage->listUsage($file);
+          if (!empty($usage['filelink_usage'][$entity_type_id][$entity_id])) {
+            $count = $usage['filelink_usage'][$entity_type_id][$entity_id];
+            while ($count-- > 0) {
+              $this->fileUsage->delete($file, 'filelink_usage', $entity_type_id, $entity_id);
+            }
+          }
+        }
+      }
+      if ($table === 'filelink_usage_matches') {
+        $this->database->delete('filelink_usage_matches')
+          ->condition('entity_type', $entity_type_id)
+          ->condition('entity_id', $entity_id)
+          ->execute();
+      }
+      else {
+        if ($entity_type_id === 'node') {
+          $this->database->delete('filelink_usage')
+            ->condition('nid', $entity_id)
+            ->execute();
+        }
+      }
       return;
     }
-    // Otherwise, mark entity for rescan and let cron handle reconciliation.
+    // If not deleted, mark the entity for rescan (handled by cron).
     $this->markEntityForScan($entity_type_id, $entity_id);
-  }
-
-  /**
-   * When a new file is added, immediately add usage records if it was referenced.
-   *
-   * @param \Drupal\file\FileInterface $file
-   *   The newly added file.
-   */
-  public function addUsageForFile(FileInterface $file): void {
-    // Only consider public files (private file references are handled via scanning).
-    if (strpos($file->getFileUri(), 'public://') !== 0) {
-      return;
-    }
-    // Check if any content had a link pointing to this file's URI.
-    $query = $this->database->select('filelink_usage_matches', 'f')
-      ->condition($this->matchesHasEntityColumns ? 'link' : 'link', $file->getFileUri());
-    if ($this->matchesHasEntityColumns) {
-      // New schema: we have entity_type and entity_id stored.
-      $query->fields('f', ['entity_type', 'entity_id']);
-      $records = $query->execute()->fetchAll();
-      foreach ($records as $record) {
-        // If a content entity was referencing this file, add a usage entry for it.
-        $this->fileUsage->add($file, 'filelink_usage', $record->entity_type, $record->entity_id);
-      }
-    }
-    else {
-      // Legacy schema (no entity_type column): only nodes were tracked.
-      $query->fields('f', ['link']);
-      $nids = $query->execute()->fetchCol();
-      foreach ($nids as $nid) {
-        $this->fileUsage->add($file, 'filelink_usage', 'node', $nid);
-      }
-    }
   }
 
 }
