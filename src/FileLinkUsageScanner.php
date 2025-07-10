@@ -136,27 +136,14 @@ class FileLinkUsageScanner {
       $this->fileUsage->add($file, 'filelink_usage', $entity->getEntityTypeId(), $entity->id(), 1);
 
       // Store which specific link/URI caused the usage trace so we can report.
-      $merge = $this->database->merge('filelink_usage')
-        ->keys([
-          'fid'        => $fid,
-          'link_source'=> 'scan',
-          'entity_type'=> $entity->getEntityTypeId(),
-          'entity_id'  => $entity->id(),
-        ]);
-
-      // The schema differs depending on module version; cope gracefully.
-      $this->hasUriColumn = $this->hasUriColumn ??
-        $this->database->schema()->fieldExists('filelink_usage', 'uri');
-
-      if ($this->hasUriColumn) {
-        $merge->key('fid', $fid)
-              ->fields([$this->hasUriColumn ? 'uri' : 'link' => $file->getFileUri()]);
-      }
-      else {
-        $merge->key($this->hasUriColumn ? 'uri' : 'link', $file->getFileUri());
-      }
-      $merge->fields(['timestamp' => $this->time->getRequestTime()])
-            ->execute();
+      $this->database->merge('filelink_usage_matches')
+        ->key([
+          'entity_type' => $entity->getEntityTypeId(),
+          'entity_id'   => $entity->id(),
+          'link'        => $file->getFileUri(),
+        ])
+        ->fields(['timestamp' => $this->time->getRequestTime()])
+        ->execute();
       // Invalidate cache for this file to reflect new usage.
       Cache::invalidateTags(['file:' . $fid]);
     }
