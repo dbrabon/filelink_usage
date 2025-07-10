@@ -1,83 +1,61 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * @file
- * Main module file for FileLink Usage.
+ * Hooks and core integration for the File Link Usage module.
  */
 
-/**
- * Implements hook_entity_insert().
- */
-function filelink_usage_entity_insert(Drupal\Core\Entity\EntityInterface $entity): void {
-  // If a new file is added to the system, check if any content was referencing it.
-  if ($entity->getEntityType()->id() === 'file') {
-    \Drupal::service('filelink_usage.manager')->addUsageForFile($entity);
-    return;
-  }
-  // For other content entities, handle new content with file links.
-  $type = $entity->getEntityType()->id();
-  if ($type === 'block_content') {
-    // Use 'block' as the usage context for custom blocks.
-    $type = 'block';
-  }
-  // For nodes (and potentially large content), mark for scan to be handled in cron.
-  if ($type === 'node') {
-    \Drupal::service('filelink_usage.manager')->reconcileEntityUsage($type, (int) $entity->id(), FALSE);
-  }
-  else {
-    // Immediately scan smaller content entity types (blocks, taxonomy terms, comments, etc.).
-    \Drupal::service('filelink_usage.scanner')->scanEntity($entity);
-  }
-}
+use Drupal\node\NodeInterface;
+use Drupal\file\FileInterface;
 
 /**
- * Implements hook_entity_update().
+ * Responds to entity insert events.
  */
-function filelink_usage_entity_update(Drupal\Core\Entity\EntityInterface $entity): void {
-  // If a file entity is updated, we generally do not need to rescan content.
-  if ($entity->getEntityType()->id() === 'file') {
-    // No action needed for file updates (file usage handled on insert or via content scans).
-    return;
-  }
-  // For content entity updates, treat similarly to insert.
-  $type = $entity->getEntityType()->id();
-  if ($type === 'block_content') {
-    $type = 'block';
-  }
-  if ($type === 'node') {
-    // Mark node for rescan on cron (to update added or removed links).
-    \Drupal::service('filelink_usage.manager')->reconcileEntityUsage($type, (int) $entity->id(), FALSE);
-  }
-  else {
-    // Immediately rescan smaller content types for link changes.
-    \Drupal::service('filelink_usage.scanner')->scanEntity($entity);
-  }
-}
-
-/**
- * Implements hook_entity_delete().
- */
-function filelink_usage_entity_delete(Drupal\Core\Entity\EntityInterface $entity): void {
+function filelink_usage_entity_insert(\Drupal\Core\Entity\EntityInterface $entity) {
+  // If content entity of type node, block, taxonomy or comment, scan for file links.
   $entity_type = $entity->getEntityType()->id();
-  if ($entity_type === 'file') {
-    // When a file is being deleted, remove all hard-coded usage references for it.
+  if (in_array($entity_type, ['node', 'block_content', 'taxonomy_term', 'comment'])) {
+    \Drupal::service('filelink_usage.scanner')->scanEntity($entity);
+  }
+  elseif ($entity instanceof FileInterface) {
+    // A new file was added; update usage if this file matches any known links.
+    \Drupal::service('filelink_usage.manager')->addUsageForFile($entity);
+  }
+}
+
+/**
+ * Responds to entity update events.
+ */
+function filelink_usage_entity_update(\Drupal\Core\Entity\EntityInterface $entity) {
+  if ($entity instanceof NodeInterface) {
+    // Rescan updated node content for file links.
+    \Drupal::service('filelink_usage.scanner')->scanEntity($entity);
+  }
+  elseif ($entity->getEntityType()->id() === 'block_content' || $entity->getEntityType()->id() === 'taxonomy_term' || $entity->getEntityType()->id() === 'comment') {
+    // Rescan updated block, taxonomy term, or comment content for file links.
+    \Drupal::service('filelink_usage.scanner')->scanEntity($entity);
+  }
+  // (File updates typically don't need scanning; file usage changes are handled on insert or through content rescans.)
+}
+
+/**
+ * Responds to entity delete events.
+ */
+function filelink_usage_entity_delete(\Drupal\Core\Entity\EntityInterface $entity) {
+  if ($entity instanceof NodeInterface) {
+    // Clean up file usage records when a node is deleted.
+    \Drupal::service('filelink_usage.manager')->cleanupNode($entity);
+  }
+  elseif ($entity instanceof FileInterface) {
+    // Clean up file usage records when a file is deleted, if necessary.
     \Drupal::service('filelink_usage.manager')->removeFileUsage($entity);
   }
   else {
-    // When content is deleted, reconcile usage by removing any file link references.
-    if ($entity_type === 'block_content') {
-      $entity_type = 'block';
+    // For other content entities (blocks, taxonomy terms, comments), remove file usage references.
+    $type = $entity->getEntityType()->id();
+    if ($type === 'block_content') {
+      $type = 'block';
     }
-    \Drupal::service('filelink_usage.manager')->reconcileEntityUsage($entity_type, (int) $entity->id(), TRUE);
+    \Drupal::service('filelink_usage.manager')->reconcileEntityUsage($type, $entity->id(), TRUE);
   }
-}
-
-/**
- * Implements hook_cron().
- */
-function filelink_usage_cron(): void {
-  // Trigger the manager to perform scheduled scans (rescan marked content, purge stale records).
-  \Drupal::service('filelink_usage.manager')->runCron();
 }
