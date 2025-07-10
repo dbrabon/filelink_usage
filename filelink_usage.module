@@ -25,7 +25,7 @@ function filelink_usage_entity_update(EntityInterface $entity): void {
  * Remove all usage when an entity is deleted.
  */
 function filelink_usage_entity_delete(EntityInterface $entity): void {
-  \Drupal::service('filelink_usage.manager')
+  \Drupal::service('filelink_usage.scanner')
     ->reconcileEntityUsage($entity->getEntityTypeId(), $entity->id(), TRUE);
 }
 
@@ -34,14 +34,14 @@ function filelink_usage_entity_delete(EntityInterface $entity): void {
  * if that file was already referenced by hard‑coded links.
  */
 function filelink_usage_file_insert(FileInterface $file): void {
-  \Drupal::service('filelink_usage.manager')->addUsageForFile($file);
+  \Drupal::service('filelink_usage.scanner')->addUsageForFile($file);
 }
 
 /**
  * Cron entry point – runs the scheduled full scan.
  */
 function filelink_usage_cron(): void {
-  \Drupal::service('filelink_usage.manager')->runCron();
+  \Drupal::service('filelink_usage.scanner')->runCron();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -53,8 +53,7 @@ function filelink_usage_cron(): void {
  */
 function _filelink_usage_scan_and_reconcile(EntityInterface $entity): void {
   $scanner = \Drupal::service('filelink_usage.scanner');
-  $manager = \Drupal::service('filelink_usage.manager');
 
   $scanner->scan([$entity->id()], $entity->getEntityTypeId());
-  $manager->reconcileEntityUsage($entity->getEntityTypeId(), $entity->id());
+  $scanner->reconcileEntityUsage($entity->getEntityTypeId(), $entity->id());
 }
