@@ -113,13 +113,17 @@ class FileLinkUsageManager {
         ->fetchCol();
     }
 
-    // Perform the scan and reconcile usage for each affected node.
-    if (!empty($nids)) {
-      $this->scanner->scan($nids);
-      foreach ($nids as $nid) {
-        $this->reconcileNodeUsage((int) $nid);
+      // Perform the scan and reconcile usage for each affected node.
+      if (!empty($nids)) {
+        // Scanner::scan() expects entity IDs keyed by type.  Previously the
+        // list of node IDs was passed directly, resulting in numeric keys and
+        // an invalid entity type "0".  Wrap the IDs using the node entity type
+        // to avoid PluginNotFoundException.
+        $this->scanner->scan(['node' => $nids]);
+        foreach ($nids as $nid) {
+          $this->reconcileNodeUsage((int) $nid);
+        }
       }
-    }
     // Update the last scan timestamp.
     $config->set('last_scan', $now)->save();
   }
