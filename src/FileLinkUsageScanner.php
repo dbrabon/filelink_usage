@@ -136,27 +136,34 @@ class FileLinkUsageScanner {
       $this->fileUsage->add($file, 'filelink_usage', $entity->getEntityTypeId(), $entity->id(), 1);
 
       // Store which specific link/URI caused the usage trace so we can report.
-      $merge = $this->database->merge('filelink_usage')
-        ->keys([
-          'fid'        => $fid,
-          'link_source'=> 'scan',
-          'entity_type'=> $entity->getEntityTypeId(),
-          'entity_id'  => $entity->id(),
+      // Older versions of the module used a table named "filelink_usage" with
+      // slightly different columns. Detect which schema is present so that
+      // scans continue to work on upgraded sites.
+      $table = $this->database->schema()->tableExists('filelink_usage_matches')
+        ? 'filelink_usage_matches'
+        : 'filelink_usage';
+
+      $merge = $this->database->merge($table);
+
+      if ($table === 'filelink_usage_matches') {
+        $merge->key([
+          'entity_type' => $entity->getEntityTypeId(),
+          'entity_id'   => $entity->id(),
+          'link'        => $file->getFileUri(),
         ]);
-
-      // The schema differs depending on module version; cope gracefully.
-      $this->hasUriColumn = $this->hasUriColumn ??
-        $this->database->schema()->fieldExists('filelink_usage', 'uri');
-
-      if ($this->hasUriColumn) {
-        $merge->key('fid', $fid)
-              ->fields([$this->hasUriColumn ? 'uri' : 'link' => $file->getFileUri()]);
       }
       else {
-        $merge->key($this->hasUriColumn ? 'uri' : 'link', $file->getFileUri());
+        $merge->keys([
+          'fid'         => $fid,
+          'link_source' => 'scan',
+          'entity_type' => $entity->getEntityTypeId(),
+          'entity_id'   => $entity->id(),
+          'link'        => $file->getFileUri(),
+        ]);
       }
+
       $merge->fields(['timestamp' => $this->time->getRequestTime()])
-            ->execute();
+        ->execute();
       // Invalidate cache for this file to reflect new usage.
       Cache::invalidateTags(['file:' . $fid]);
     }
