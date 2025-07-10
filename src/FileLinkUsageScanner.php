@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Drupal\filelink_usage;
 
@@ -8,207 +9,151 @@ use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\Core\Render\RendererInterface;
+use Drupal\node\NodeInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Component\Datetime\TimeInterface;
+use Psr\Log\LoggerInterface;
 
 /**
- * Scans content for file links and updates file usage accordingly.
+ * Scans content entities for hard‑linked files and records their usage.
+ *
+ * This scanner is intentionally conservative: it looks only at files that are
+ * referenced via absolute URLs in rendered HTML (e.g. links or image sources
+ * pointing into /sites/default/files or /system/files).  Media–field
+ * references, file entities, etc. are all handled by core’s regular file usage
+ * tracking; this tool focuses on “naked” links that would otherwise be missed.
  */
 class FileLinkUsageScanner {
 
   /**
-   * The entity type manager for loading entities.
-   *
-   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   * Regular expression fragment that matches file paths inside src/href.
    */
-  protected $entityTypeManager;
+  public const FILE_LINK_REGEX =
+    '/(?:src|href)="([^"]*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"]+)"/i';
 
   /**
-   * The database connection.
-   *
-   * @var \Drupal\Core\Database\Connection
+   * Constructs the scanner service.
    */
-  protected $database;
+  public function __construct(
+    protected EntityTypeManagerInterface $entityTypeManager,
+    protected RendererInterface          $renderer,
+    protected Connection                 $database,
+    protected FileUsageInterface         $fileUsage,
+    protected ConfigFactoryInterface     $configFactory,
+    protected TimeInterface              $time,
+    protected LoggerInterface            $logger,
+  ) {}
 
   /**
-   * The file usage service.
+   * Scan a list of entity IDs for hard‑linked file usage.
    *
-   * @var \Drupal\file\FileUsage\FileUsageInterface
+   * @param array $entity_ids
+   *   IDs keyed by entity type.
    */
-  protected $fileUsage;
-
-  /**
-   * The renderer service for rendering entities to HTML.
-   *
-   * @var \Drupal\Core\Render\RendererInterface
-   */
-  protected $renderer;
-
-  /**
-   * Constructs a FileLinkUsageScanner service.
-   *
-   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
-   *   The entity type manager.
-   * @param \Drupal\Core\Database\Connection $database
-   *   The database connection.
-   * @param \Drupal\file\FileUsage\FileUsageInterface $fileUsage
-   *   The file usage service.
-   * @param \Drupal\Core\Render\RendererInterface $renderer
-   *   The renderer service.
-   */
-  public function __construct(EntityTypeManagerInterface $entityTypeManager, Connection $database, FileUsageInterface $fileUsage, RendererInterface $renderer) {
-    $this->entityTypeManager = $entityTypeManager;
-    $this->database = $database;
-    $this->fileUsage = $fileUsage;
-    $this->renderer = $renderer;
+  public function scan(array $entity_ids): void {
+    foreach ($entity_ids as $entity_type => $ids) {
+      /** @var \Drupal\Core\Entity\ContentEntityStorageInterface $storage */
+      $storage = $this->entityTypeManager->getStorage($entity_type);
+      foreach ($storage->loadMultiple($ids) as $entity) {
+        $this->scanEntity($entity);
+      }
+    }
   }
 
   /**
-   * Scans a given content entity for file links and updates file usage.
+   * Scan a single entity.
    *
    * @param \Drupal\Core\Entity\EntityInterface $entity
-   *   The content entity to scan.
    */
-  public function scanEntity(EntityInterface $entity) {
-    $entity_type = $entity->getEntityTypeId();
-    $entity_id = $entity->id();
-
-    // Retrieve previously recorded file usage for this entity from our tracking table.
-    $prev_fids = [];
-    $result = $this->database->select('filelink_usage_matches', 'fum')
-      ->fields('fum', ['fid'])
-      ->condition('entity_type', $entity_type)
-      ->condition('entity_id', $entity_id)
-      ->execute();
-    foreach ($result as $record) {
-      $prev_fids[] = (int) $record->fid;
-    }
-    $prev_fids = array_unique($prev_fids);
-
-    // Render the entity to HTML (full view mode by default) to capture all file links in its output.
-    $view_builder = $this->entityTypeManager->getViewBuilder($entity_type);
-    $build = $view_builder->view($entity, 'full');
-    $rendered = $this->renderer->render($build);
-    $output = (string) $rendered;
-
-    // Find all file links (public or private) in the rendered HTML.
-    $new_fids = [];
-    if (preg_match_all('/(?:src|href)="([^"]*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"]+)"/i', $output, $matches)) {
-      $file_urls = $matches[1];
-      // Track each file URL found, avoid duplicates in the same content.
-      $found_uris = [];
-      $file_storage = $this->entityTypeManager->getStorage('file');
-      foreach ($file_urls as $file_url) {
-        // Determine the Drupal stream URI from the URL.
-        $uri = NULL;
-        if (strpos($file_url, '/sites/default/files/') !== FALSE) {
-          // Public file.
-          $path = substr($file_url, strpos($file_url, '/sites/default/files/') + strlen('/sites/default/files/'));
-          $uri = 'public://' . rawurldecode($path);
-        }
-        elseif (strpos($file_url, '/system/files/') !== FALSE) {
-          // Private file.
-          $path = substr($file_url, strpos($file_url, '/system/files/') + strlen('/system/files/'));
-          $uri = 'private://' . rawurldecode($path);
-        }
-        if (!$uri || isset($found_uris[$uri])) {
-          // Skip if we could not determine a URI or already processed this file link.
-          continue;
-        }
-        $found_uris[$uri] = TRUE;
-
-        // Load the file entity by URI.
-        $files = $file_storage->loadByProperties(['uri' => $uri]);
-        if (empty($files)) {
-          // No managed file corresponds to this URI, skip it.
-          continue;
-        }
-        /** @var \Drupal\file\FileInterface $file */
-        $file = reset($files);
-        $fid = $file->id();
-        // Ensure each file is counted only once per entity.
-        if (!isset($new_fids[$fid])) {
-          $new_fids[$fid] = $fid;
-        }
-      }
-    }
-    $new_fids = array_unique(array_values($new_fids));
-
-    // Determine which files have been added or removed since the last scan.
-    $to_add = array_diff($new_fids, $prev_fids);
-    $to_remove = array_diff($prev_fids, $new_fids);
-
-    // If no changes in usage, skip any updates.
-    if (empty($to_add) && empty($to_remove)) {
+  protected function scanEntity(EntityInterface $entity): void {
+    // 1. Bail early if not a content entity that can contain renderable markup.
+    $entity_type = $entity->getEntityType()->id();
+    if (!in_array($entity_type, ['node', 'block_content'])) {
       return;
     }
 
-    // Prepare file storage for loading files.
-    $file_storage = $this->entityTypeManager->getStorage('file');
+    /* 2. Render the entity and find all file URLs in its HTML */
+    $view_builder = $this->entityTypeManager->getViewBuilder($entity_type);
+    // Render the entity in the 'full' view mode to get HTML as a string.
+    $html = (string) $this->renderer->renderPlain($view_builder->view($entity, 'full'));
+    // Use regex to capture file links (public:// or private:// paths in src/href).
+    preg_match_all(
+      '/(?:src|href)="([^"]*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"]+)"/i',
+      $html,
+      $matches
+    );
+    // Extract the file URLs (if any) from regex matches.
+    $file_urls = $matches[1] ?? [];
 
-    // Remove usage records for files that are no longer present.
-    foreach ($to_remove as $fid) {
-      $file = $file_storage->load($fid);
-      if ($file) {
-        // Remove the file usage record for this entity under our module.
-        $this->fileUsage->delete($file, 'filelink_usage', $entity_type, $entity_id);
+    $found_fids = [];
+    $found_uris = [];
+    foreach ($file_urls as $url) {
+      $uri = NULL;
+      if (strpos($url, '/sites/default/files/') !== FALSE) {
+        // Convert public file URL to public:// URI.
+        $uri = 'public://' . str_replace('/sites/default/files/', '', $url);
       }
-      // Delete the record from our matches table.
-      $this->database->delete('filelink_usage_matches')
-        ->condition('entity_type', $entity_type)
-        ->condition('entity_id', $entity_id)
-        ->condition('fid', $fid)
-        ->execute();
-      // Invalidate cache for the file so its "Used in" count is updated.
-      Cache::invalidateTags(['file:' . $fid]);
+      elseif (strpos($url, '/system/files/') !== FALSE) {
+        // Convert private file URL to private:// URI.
+        $uri = 'private://' . str_replace('/system/files/', '', $url);
+      }
+
+      if ($uri === NULL) {
+        continue;
+      }
+
+      // Try to load the file entity for this URI.
+      /** @var \Drupal\Core\Entity\Query\QueryInterface $query */
+      $query = $this->entityTypeManager->getStorage('file')->getQuery()
+        ->condition('uri', $uri)
+        ->accessCheck(FALSE)
+        ->range(0, 1);
+      $fids = $query->execute();
+
+      if ($fids) {
+        $fid = reset($fids);
+        $found_fids[] = $fid;
+        $found_uris[] = $uri;
+      }
     }
 
-    // Add usage records for new files found in the content.
-    foreach ($to_add as $fid) {
-      $file = $file_storage->load($fid);
+    /* 3. Record file usages */
+    foreach ($found_fids as $index => $fid) {
+      /** @var \Drupal\file\FileInterface $file */
+      $file = $this->entityTypeManager->getStorage('file')->load($fid);
       if (!$file) {
         continue;
       }
-      // Avoid duplicate entries by removing usage from other modules for this file and entity.
-      $usage = $this->fileUsage->listUsage($file);
-      foreach ($usage as $module => $usage_info) {
-        if (!empty($usage_info[$entity_type][$entity_id])) {
-          if ($module !== 'filelink_usage') {
-            // Remove usage recorded by other modules for this same file and entity.
-            $this->fileUsage->delete($file, $module, $entity_type, $entity_id);
-          }
-        }
-      }
-      // Record the file usage under the filelink_usage module.
-      $this->fileUsage->add($file, 'filelink_usage', $entity_type, $entity_id);
 
-      // Insert or update our tracking table with this file link usage.
-      $this->database->merge('filelink_usage_matches')
-        ->key([
-          'entity_type' => $entity_type,
-          'entity_id' => $entity_id,
-          'fid' => $fid,
-        ])
-        ->fields([
-          'uri' => $file->getFileUri(),
-        ])
-        ->execute();
-      // Invalidate cache for the file to refresh its usage count display.
+      // Register as a usage for the entity under a special module (+type) name.
+      $this->fileUsage->add($file, 'filelink_usage', $entity->getEntityTypeId(), $entity->id(), 1);
+
+      // Store which specific link/URI caused the usage trace so we can report.
+      $merge = $this->database->merge('filelink_usage')
+        ->keys([
+          'fid'        => $fid,
+          'link_source'=> 'scan',
+          'entity_type'=> $entity->getEntityTypeId(),
+          'entity_id'  => $entity->id(),
+        ]);
+
+      // The schema differs depending on module version; cope gracefully.
+      $this->hasUriColumn = $this->hasUriColumn ??
+        $this->database->schema()->fieldExists('filelink_usage', 'uri');
+
+      if ($this->hasUriColumn) {
+        $merge->key('fid', $fid)
+              ->fields([$this->hasUriColumn ? 'uri' : 'link' => $file->getFileUri()]);
+      }
+      else {
+        $merge->key($this->hasUriColumn ? 'uri' : 'link', $file->getFileUri());
+      }
+      $merge->fields(['timestamp' => $this->time->getRequestTime()])
+            ->execute();
+      // Invalidate cache for this file to reflect new usage.
       Cache::invalidateTags(['file:' . $fid]);
-    }
-  }
-
-  /**
-   * Scans all content for file links (called via Cron or manually).
-   */
-  public function scanAllContent() {
-    // Example: scan all nodes. This could be extended to other entity types.
-    $node_storage = $this->entityTypeManager->getStorage('node');
-    $nids = $node_storage->getQuery()->accessCheck(FALSE)->execute();
-    if (!empty($nids)) {
-      $nodes = $node_storage->loadMultiple($nids);
-      foreach ($nodes as $node) {
-        $this->scanEntity($node);
-      }
     }
   }
 
 }
+
