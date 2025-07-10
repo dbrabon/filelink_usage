@@ -6,7 +6,7 @@ use Drupal\Core\Cache\Cache;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\File\FileUsage\FileUsageInterface;
+use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\Core\Render\RendererInterface;
 
 /**
@@ -31,7 +31,7 @@ class FileLinkUsageScanner {
   /**
    * The file usage service.
    *
-   * @var \Drupal\Core\File\FileUsage\FileUsageInterface
+   * @var \Drupal\file\FileUsage\FileUsageInterface
    */
   protected $fileUsage;
 
@@ -49,7 +49,7 @@ class FileLinkUsageScanner {
    *   The entity type manager.
    * @param \Drupal\Core\Database\Connection $database
    *   The database connection.
-   * @param \Drupal\Core\File\FileUsage\FileUsageInterface $fileUsage
+   * @param \Drupal\file\FileUsage\FileUsageInterface $fileUsage
    *   The file usage service.
    * @param \Drupal\Core\Render\RendererInterface $renderer
    *   The renderer service.
