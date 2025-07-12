@@ -42,6 +42,10 @@ class FileLinkUsageBlockContentHooksTest extends KernelTestBase {
     $this->installEntitySchema('node');
     $this->installEntitySchema('block_content');
     $this->installSchema('file', ['file_usage']);
+    $this->installSchema('filelink_usage', [
+      'filelink_usage_matches',
+      'filelink_usage_scan_status',
+    ]);
     $this->installConfig(['node', 'block_content', 'filter']);
 
     NodeType::create(['type' => 'article', 'name' => 'Article'])->save();
