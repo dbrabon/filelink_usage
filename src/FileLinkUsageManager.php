@@ -164,9 +164,17 @@ class FileLinkUsageManager {
    */
   public function reconcileEntityUsage(
     string $entity_type_id,
-    int $entity_id,
+    int|string $entity_id,
     bool $deleted = FALSE
   ): void {
+    if (is_string($entity_id)) {
+      if (ctype_digit($entity_id)) {
+        $entity_id = (int) $entity_id;
+      }
+      else {
+        return;
+      }
+    }
     if ($deleted) {
       $this->purgeEntityUsage($entity_type_id, $entity_id);
     }
