@@ -27,6 +27,10 @@ class FileLinkUsagePurgeTest extends KernelTestBase {
     'text',
     'file',
     'node',
+    'block',
+    'block_content',
+    'taxonomy',
+    'comment',
     'filelink_usage',
   ];
 
@@ -39,6 +43,9 @@ class FileLinkUsagePurgeTest extends KernelTestBase {
     $this->installEntitySchema('user');
     $this->installEntitySchema('file');
     $this->installEntitySchema('node');
+    $this->installEntitySchema('block_content');
+    $this->installEntitySchema('taxonomy_term');
+    $this->installEntitySchema('comment');
     $this->installSchema('file', ['file_usage']);
     $this->installSchema('filelink_usage', [
       'filelink_usage_matches',
