@@ -1,6 +1,7 @@
 <?php
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\ContentEntityTypeInterface;
 use Drupal\file\FileInterface;
 
 /**
@@ -34,7 +35,8 @@ function filelink_usage_entity_insert(EntityInterface $entity): void {
 
     default:
       // Newly created content may contain hard‑coded links – rescan next cron.
-      if ($entity->getEntityType()->isContent()) {
+      $entity_type = $entity->getEntityType();
+      if ($entity_type instanceof ContentEntityTypeInterface && $entity_type->isContent()) {
         $manager->markEntityForScan($entity->getEntityTypeId(), $entity->id());
       }
   }
@@ -45,7 +47,8 @@ function filelink_usage_entity_insert(EntityInterface $entity): void {
  */
 function filelink_usage_entity_update(EntityInterface $entity): void {
   // Any content edit might add/remove links – mark for re‑scan.
-  if ($entity->getEntityType()->isContent()) {
+  $entity_type = $entity->getEntityType();
+  if ($entity_type instanceof ContentEntityTypeInterface && $entity_type->isContent()) {
     \Drupal::service('filelink_usage.manager')
       ->markEntityForScan($entity->getEntityTypeId(), $entity->id());
   }
@@ -70,7 +73,8 @@ function filelink_usage_entity_delete(EntityInterface $entity): void {
 
     default:
       // Purge any usage rows for other content entity types.
-      if ($entity->getEntityType()->isContent()) {
+      $entity_type = $entity->getEntityType();
+      if ($entity_type instanceof ContentEntityTypeInterface && $entity_type->isContent()) {
         $manager->reconcileEntityUsage($entity->getEntityTypeId(), $entity->id(), TRUE);
       }
   }
