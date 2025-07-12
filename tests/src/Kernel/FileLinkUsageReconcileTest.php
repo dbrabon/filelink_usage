@@ -38,6 +38,10 @@ class FileLinkUsageReconcileTest extends KernelTestBase {
     $this->installEntitySchema('file');
     $this->installEntitySchema('node');
     $this->installSchema('file', ['file_usage']);
+    $this->installSchema('filelink_usage', [
+      'filelink_usage_matches',
+      'filelink_usage_scan_status',
+    ]);
     $this->installConfig(['node', 'filter']);
 
     NodeType::create(['type' => 'article', 'name' => 'Article'])->save();
