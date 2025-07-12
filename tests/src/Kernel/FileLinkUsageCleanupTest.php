@@ -70,7 +70,7 @@ class FileLinkUsageCleanupTest extends KernelTestBase {
     ]);
     $node->save();
 
-    $this->container->get('filelink_usage.scanner')->scan([$node->id()]);
+    $this->container->get('filelink_usage.scanner')->scan(['node' => [$node->id()]]);
 
     $database = $this->container->get('database');
     $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();

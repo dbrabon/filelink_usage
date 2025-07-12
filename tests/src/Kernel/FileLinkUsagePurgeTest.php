@@ -73,7 +73,7 @@ class FileLinkUsagePurgeTest extends KernelTestBase {
     $node->save();
 
     // Initial scan to populate tables.
-    $this->container->get('filelink_usage.scanner')->scan([$node->id()]);
+    $this->container->get('filelink_usage.scanner')->scan(['node' => [$node->id()]]);
 
     $database = $this->container->get('database');
     $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
@@ -158,7 +158,7 @@ class FileLinkUsagePurgeTest extends KernelTestBase {
     ]);
     $node->save();
 
-    $this->container->get('filelink_usage.scanner')->scan([$node->id()]);
+    $this->container->get('filelink_usage.scanner')->scan(['node' => [$node->id()]]);
 
     $database = $this->container->get('database');
 

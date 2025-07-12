@@ -74,8 +74,8 @@ class FileLinkUsageScannerTest extends KernelTestBase {
 
     // Run the scanner twice for the same node.
     $scanner = $this->container->get('filelink_usage.scanner');
-    $scanner->scan([$node->id()]);
-    $scanner->scan([$node->id()]);
+    $scanner->scan(['node' => [$node->id()]]);
+    $scanner->scan(['node' => [$node->id()]]);
 
     // Validate only a single usage row exists.
     $usage = $this->container->get('file.usage')->listUsage($file);
@@ -109,7 +109,7 @@ class FileLinkUsageScannerTest extends KernelTestBase {
     ]);
     $node->save();
 
-    $this->container->get('filelink_usage.scanner')->scan([$node->id()]);
+    $this->container->get('filelink_usage.scanner')->scan(['node' => [$node->id()]]);
 
     $link = $this->container->get('database')->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
@@ -157,7 +157,7 @@ class FileLinkUsageScannerTest extends KernelTestBase {
     ]);
     $node->save();
 
-    $this->container->get('filelink_usage.scanner')->scan([$node->id()]);
+    $this->container->get('filelink_usage.scanner')->scan(['node' => [$node->id()]]);
 
     $links = $this->container->get('database')->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
@@ -201,7 +201,7 @@ class FileLinkUsageScannerTest extends KernelTestBase {
     ]);
     $node->save();
 
-    $this->container->get('filelink_usage.scanner')->scan([$node->id()]);
+    $this->container->get('filelink_usage.scanner')->scan(['node' => [$node->id()]]);
 
     $link = $this->container->get('database')->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
@@ -239,7 +239,7 @@ class FileLinkUsageScannerTest extends KernelTestBase {
     $node->save();
 
     $scanner = $this->container->get('filelink_usage.scanner');
-    $scanner->scan([$node->id()]);
+    $scanner->scan(['node' => [$node->id()]]);
 
     $database = $this->container->get('database');
     $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
@@ -249,7 +249,7 @@ class FileLinkUsageScannerTest extends KernelTestBase {
     $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
     $this->assertEquals(0, $count);
 
-    $scanner->scan([$node->id()]);
+    $scanner->scan(['node' => [$node->id()]]);
     $link = $database->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
       ->condition('entity_type', 'node')
