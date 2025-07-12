@@ -111,7 +111,10 @@ class FileLinkUsageNodeHooksTest extends KernelTestBase {
       ->fetchField();
     $this->assertEquals(0, $count);
 
-    $node->body->value = '<a href="/sites/default/files/hook_update.txt">Download</a>';
+    $node->set('body', [
+      'value' => '<a href="/sites/default/files/hook_update.txt">Download</a>',
+      'format' => 'plain_text',
+    ]);
     $node->save();
 
     $link = $database->select('filelink_usage_matches', 'f')
@@ -161,7 +164,10 @@ class FileLinkUsageNodeHooksTest extends KernelTestBase {
     $this->assertArrayHasKey($node->id(), $usage1['filelink_usage']['node']);
 
     // Update to link to the second file.
-    $node->body->value = '<a href="/sites/default/files/hook_replace2.txt">Download</a>';
+    $node->set('body', [
+      'value' => '<a href="/sites/default/files/hook_replace2.txt">Download</a>',
+      'format' => 'plain_text',
+    ]);
     $node->save();
 
     $usage1 = $this->container->get('file.usage')->listUsage($file1);
