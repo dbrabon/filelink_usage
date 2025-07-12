@@ -3,6 +3,7 @@
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\ContentEntityTypeInterface;
 use Drupal\file\FileInterface;
+use Drupal\node\NodeInterface;
 
 /**
  * ---------------------------------------------------------------------------
@@ -78,4 +79,13 @@ function filelink_usage_entity_delete(EntityInterface $entity): void {
         $manager->reconcileEntityUsage($entity->getEntityTypeId(), $entity->id(), TRUE);
       }
   }
+}
+
+/**
+ * Mark a node as needing a rescan.
+ *
+ * Retained for backward compatibility with older hooks.
+ */
+function filelink_usage_mark_for_rescan(NodeInterface $node): void {
+  \Drupal::service('filelink_usage.manager')->markEntityForScan('node', $node->id());
 }

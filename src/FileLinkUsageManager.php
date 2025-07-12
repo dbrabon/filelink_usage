@@ -134,6 +134,13 @@ class FileLinkUsageManager {
   }
 
   /**
+   * Mark all entities for re-scan by clearing scan status table.
+   */
+  public function markAllForRescan(): void {
+    $this->database->truncate('filelink_usage_scan_status')->execute();
+  }
+
+  /**
    * Remove usage records when a node is deleted.
    */
   public function cleanupNode(NodeInterface $node): void {
