@@ -18,7 +18,7 @@ The `filelink_usage` module scans all HTML-formatted text fields across a Drupal
 * ⏱️ **Automatic scans on content changes:** Content is scanned on creation and update events so file usage stays in sync immediately. For example, when a node or block is saved, the module parses its text and updates file usage right away. Hard-coded file links are also removed from tracking when an entity is deleted.
 * 📥 **Responsive to new file uploads:** If content contains a file link before the file exists, the module can register the usage once the file is uploaded. A newly uploaded file triggers a check against stored links so that any content referencing that file’s URI will immediately get a usage entry. (This works in conjunction with periodic rescans – see **Cron Behavior** below – to catch new files appearing after content was scanned.)
 * 📅 **Drupal Cron integration:** The module can periodically scan content via Cron according to a configurable schedule. It will rescan content entities whose last scan time is older than the set interval, ensuring links added long ago are eventually rechecked. Cron will also perform a full site scan if no usage records exist (e.g. on first run or after a purge).
-* 💻 **Manual scanning capability:** Provides a Drush command `drush filelink_usage:scan` to run the scanner on demand. This can be used to manually trigger a full scan or target specific entity types via the API (for example, to scan all block content programmatically).
+* 💻 **Manual scanning capability:** Provides a Drush command `drush filelink_usage:scan` to run the manager's scan routine on demand. This performs the same process used by cron to rescan any entities that need it.
 * 🗑️ **Usage cleanup on deletion:** When content or files are removed, the module cleans up their file usage records so nothing is left hanging. Deleting a node automatically removes all file usage entries that module had added for that node. Likewise, deleting a file clears any usage records for it that were tracked by this module.
 * 🔄 **Targeted cache invalidation:** The module clears render caches only for the affected entities when file usage changes, rather than a full cache flush. For example, when a file’s usage is updated or removed, it invalidates that file’s cache tag (and the content entity’s, if needed) so that usage counts and file lists reflect changes immediately. This minimizes cache clearing impact while ensuring accuracy.
 * ⚙️ **Configurable and developer-friendly:** Includes a settings page for configuration and debugging. Verbose logging of scanner activity can be enabled to help troubleshoot issues (off by default). All functionality is implemented via Drupal services (`filelink_usage.manager`, `filelink_usage.scanner`, etc.) using proper interfaces and dependency injection, making the code maintainable and extensible. The module also comes with comprehensive kernel tests covering scans, cron behavior, and edge cases to ensure reliability.
@@ -66,17 +66,17 @@ Once installed and configured, Filelink Usage works mostly behind the scenes to 
   drush filelink_usage:scan
   ```
 
-  Running this will invoke the scanner on all entities (respecting the configured frequency rules) and output any file links found. You might do this after enabling the module for the first time, or if you suspect some content wasn’t scanned. Developers can also invoke the scanning in code by calling the service. For example, to scan all custom blocks via code:
+  Running this executes the same cron-style scan immediately, processing any entities marked for rescanning based on your configured frequency. Developers can invoke the logic in code as well:
 
   ```php
-  \Drupal::service('filelink_usage.scanner')->scan(NULL, 'block_content');
+  \Drupal::service('filelink_usage.manager')->runCron();
   ```
 
-  (This would load and scan all `block_content` entities for file links.)
+  (This runs the manager's routine directly.)
 
 ### Usage Examples
 
-* **Manual full scan via Drush:** Say you’ve just installed the module on an existing site and want to populate usage data immediately. Run `**drush filelink_usage:scan**`. The scanner will process all configured entity types (by default nodes, and others if configured) and output the links it finds. For example, you might see console output listing nodes and file links found. After this completes, the `filelink_usage_matches` table will be filled with all detected references, and the `file_usage` counts for files will be updated.
+* **Manual full scan via Drush:** Say you’ve just installed the module on an existing site and want to populate usage data immediately. Run `**drush filelink_usage:scan**`. The manager will process all configured entity types (by default nodes, and others if configured) using the cron scan routine. After it completes the `filelink_usage_matches` table will contain all detected references and file usage counts will be updated.
 
 * **Adding a new file that content references:** Suppose an editor created a page with an HTML link to a PDF file that didn’t exist yet. The module will have recorded the link reference (by URI) in its tracking table, even though no file usage entry was added at the time. When the PDF is later uploaded as a Drupal file (e.g. via **Content → Files** or any file upload), the Filelink Usage module’s file insert hook runs. It finds that some content had a link for this file’s path and immediately adds the usage entry. The file’s “usage” count will go from 0 to 1 upon upload, reflecting that the previously created content is now using it. This happens without waiting for cron, ensuring file usage is up-to-date as soon as files become available.
 

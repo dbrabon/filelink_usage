@@ -4,29 +4,28 @@ declare(strict_types=1);
 namespace Drupal\filelink_usage\Commands;
 
 use Drush\Commands\DrushCommands;
-use Drupal\filelink_usage\FileLinkUsageScanner;
+use Drupal\filelink_usage\FileLinkUsageManager;
 
 class FileLinkUsageCommands extends DrushCommands {
 
-  protected FileLinkUsageScanner $scanner;
+  protected FileLinkUsageManager $manager;
 
-  public function __construct(FileLinkUsageScanner $scanner) {
-    $this->scanner = $scanner;
+  public function __construct(FileLinkUsageManager $manager) {
+    $this->manager = $manager;
   }
 
   /**
-   * Scan nodes for file links in text fields.
+   * Run the Filelink Usage scanning routine.
    *
    * @command filelink_usage:scan
    * @aliases flus
-   * @usage filelink_usage:scan
+   * @usage drush filelink_usage:scan
+   *   Runs the same scanning process that cron triggers, scanning any entities
+   *   marked for a rescan.
    */
   public function scan(): void {
-    $results = $this->scanner->scan();
-    foreach ($results as $item) {
-      $this->output()->writeln("Node {$item['nid']} → {$item['link']}");
-    }
-    $this->logger()->success(count($results) . ' links found.');
+    $this->manager->runCron();
+    $this->logger()->success('File link scan complete.');
   }
 
 }
