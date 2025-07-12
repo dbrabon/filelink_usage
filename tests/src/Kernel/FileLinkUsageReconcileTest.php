@@ -85,7 +85,7 @@ class FileLinkUsageReconcileTest extends KernelTestBase {
     $node->save();
 
     // Initial scan.
-    $this->container->get('filelink_usage.scanner')->scan([$node->id()]);
+    $this->container->get('filelink_usage.scanner')->scan(['node' => [$node->id()]]);
 
     $database = $this->container->get('database');
     // Remove usage for the real file and add usage for another file.
