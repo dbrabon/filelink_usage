@@ -115,11 +115,14 @@ class FileLinkUsageCleanupTest extends KernelTestBase {
         'timestamp' => $this->container->get('datetime.time')->getRequestTime(),
       ])
       ->execute();
-    $database->insert('filelink_usage_scan_status')
-      ->fields([
+    $timestamp = $this->container->get('datetime.time')->getRequestTime();
+    $database->merge('filelink_usage_scan_status')
+      ->keys([
         'entity_type' => 'node',
         'entity_id' => $node->id(),
-        'scanned' => $this->container->get('datetime.time')->getRequestTime(),
+      ])
+      ->fields([
+        'scanned' => $timestamp,
       ])
       ->execute();
 
