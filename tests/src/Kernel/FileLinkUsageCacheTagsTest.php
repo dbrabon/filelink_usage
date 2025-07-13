@@ -73,7 +73,7 @@ class FileLinkUsageCacheTagsTest extends FileLinkUsageKernelTestBase {
       'title' => 'Invalidate',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -100,7 +100,7 @@ class FileLinkUsageCacheTagsTest extends FileLinkUsageKernelTestBase {
       'title' => 'Cleanup',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();

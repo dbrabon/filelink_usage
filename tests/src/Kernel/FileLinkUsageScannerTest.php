@@ -62,7 +62,7 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
       'title' => 'Test node',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -99,7 +99,7 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
       'title' => 'Test node',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -147,7 +147,7 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
       'title' => 'Test node spaces',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -191,7 +191,7 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
       'body' => [
         'value' => 'No link here',
         'summary' => '<a href="/sites/default/files/summary.txt">Download</a>',
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -228,7 +228,7 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
       'title' => 'Repopulate',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -275,7 +275,7 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
       'vid' => 'tags',
       'description' => [
         'value' => '<a href="/sites/default/files/term.txt">Download</a>',
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $term->save();
@@ -311,7 +311,7 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
       'title' => 'Node with comment',
       'body' => [
         'value' => 'Body',
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -325,7 +325,7 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
       'subject' => 'Test comment',
       'comment_body' => [
         'value' => '<a href="/sites/default/files/comment.txt">Download</a>',
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $comment->save();

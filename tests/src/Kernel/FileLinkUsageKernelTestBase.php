@@ -4,6 +4,7 @@ namespace Drupal\Tests\filelink_usage\Kernel;
 
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\node\Entity\NodeType;
+use Drupal\filter\Entity\FilterFormat;
 
 /**
  * Provides common setup for filelink_usage kernel tests.
@@ -26,6 +27,13 @@ abstract class FileLinkUsageKernelTestBase extends KernelTestBase {
     ]);
     $this->installSchema('node', ['node_access']);
     $this->installConfig(['system', 'node', 'filter']);
+
+    if (!FilterFormat::load('basic_html')) {
+      FilterFormat::create([
+        'format' => 'basic_html',
+        'name' => 'Basic HTML',
+      ])->save();
+    }
 
     $node_type = NodeType::create([
       'type' => 'article',

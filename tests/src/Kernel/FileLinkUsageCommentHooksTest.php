@@ -59,7 +59,7 @@ class FileLinkUsageCommentHooksTest extends FileLinkUsageKernelTestBase {
       'title' => 'Comment parent',
       'body' => [
         'value' => 'Parent node',
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -71,7 +71,7 @@ class FileLinkUsageCommentHooksTest extends FileLinkUsageKernelTestBase {
       'entity_id' => $node->id(),
       'comment_body' => [
         'value' => '<a href="/sites/default/files/comment_link.txt">Download</a>',
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $comment->save();

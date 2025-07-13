@@ -60,7 +60,7 @@ class FileLinkUsageBlockContentHooksTest extends FileLinkUsageKernelTestBase {
       'info' => 'Hook insert',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $block->save();
