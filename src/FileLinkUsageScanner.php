@@ -108,7 +108,8 @@ class FileLinkUsageScanner {
 
     // 1. Render the entity and find all file URLs in its HTML.
     $view_builder = $this->entityTypeManager->getViewBuilder($entity_type);
-    $html = (string) $this->renderer->renderPlain($view_builder->view($entity, 'full'));
+    $build = $view_builder->view($entity, 'full');
+    $html = (string) $this->renderer->renderInIsolation($build);
     preg_match_all('/(?:src|href)="([^"]*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"]+)"/i', $html, $matches);
     $file_urls = $matches[1] ?? [];
 
