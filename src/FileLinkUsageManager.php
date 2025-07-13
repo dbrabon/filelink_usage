@@ -98,7 +98,7 @@ class FileLinkUsageManager {
     // Decide which entities to scan.
     [$nids, $block_ids, $term_ids, $comment_ids] = $needs_full
       ? $this->collectAllEntityIds()
-      : $this->collectStaleNodeIds($now - $interval);
+      : $this->collectStaleEntityIds($now - $interval);
 
     $entities = [];
     if ($nids)        { $entities['node']          = $nids; }
@@ -117,14 +117,21 @@ class FileLinkUsageManager {
    * Mark an entity for re‑scan (e.g. from hook_entity_update()).
    */
   public function markEntityForScan(string $entity_type_id, int $entity_id): void {
-    if ($entity_type_id === 'node') {
-      if ($this->statusHasEntityColumns) {
+    $supported = ['node', 'block_content', 'taxonomy_term', 'comment'];
+
+    if ($this->statusHasEntityColumns) {
+      if (in_array($entity_type_id, $supported, TRUE)) {
         $this->database->merge('filelink_usage_scan_status')
-          ->keys(['entity_type' => 'node', 'entity_id' => $entity_id])
+          ->keys([
+            'entity_type' => $entity_type_id,
+            'entity_id' => $entity_id,
+          ])
           ->fields(['scanned' => 0])
           ->execute();
       }
-      else {
+    }
+    else {
+      if ($entity_type_id === 'node') {
         $this->database->merge('filelink_usage_scan_status')
           ->keys(['nid' => $entity_id])
           ->fields(['scanned' => 0])
@@ -206,22 +213,49 @@ class FileLinkUsageManager {
     return [$nids, $bids, $tids, $cids];
   }
 
-  private function collectStaleNodeIds(int $threshold): array {
-    $query = $this->database->select('node_field_data', 'n');
+  private function collectStaleEntityIds(int $threshold): array {
     if ($this->statusHasEntityColumns) {
-      $query->leftJoin('filelink_usage_scan_status', 's',
-        'n.nid = s.entity_id AND s.entity_type = :t', [':t' => 'node']);
+      $map = [
+        'node' => ['node_field_data', 'nid'],
+        'block_content' => ['block_content_field_data', 'id'],
+        'taxonomy_term' => ['taxonomy_term_field_data', 'tid'],
+        'comment' => ['comment_field_data', 'cid'],
+      ];
+
+      $results = [];
+      foreach ($map as $type => [$table, $id_field]) {
+        if ($this->database->schema()->tableExists($table)) {
+          $query = $this->database->select($table, 'e');
+          $query->leftJoin('filelink_usage_scan_status', 's',
+            "e.$id_field = s.entity_id AND s.entity_type = :t", [':t' => $type]);
+          $query->fields('e', [$id_field]);
+          $or = $query->orConditionGroup()
+            ->isNull('s.scanned')
+            ->condition('s.scanned', $threshold, '<');
+          $results[$type] = $query->condition($or)->execute()->fetchCol();
+        }
+        else {
+          $results[$type] = [];
+        }
+      }
+
+      return [
+        $results['node'],
+        $results['block_content'],
+        $results['taxonomy_term'],
+        $results['comment'],
+      ];
     }
     else {
-      $query->leftJoin('filelink_usage_scan_status', 's',
-        'n.nid = s.nid');
+      $query = $this->database->select('node_field_data', 'n');
+      $query->leftJoin('filelink_usage_scan_status', 's', 'n.nid = s.nid');
+      $query->fields('n', ['nid']);
+      $or = $query->orConditionGroup()
+        ->isNull('s.scanned')
+        ->condition('s.scanned', $threshold, '<');
+      $nids = $query->condition($or)->execute()->fetchCol();
+      return [$nids, [], [], []];
     }
-    $query->fields('n', ['nid']);
-    $or = $query->orConditionGroup()
-      ->isNull('s.scanned')
-      ->condition('s.scanned', $threshold, '<');
-    $nids = $query->condition($or)->execute()->fetchCol();
-    return [$nids, [], [], []];
   }
 
   private function purgeEntityUsage(string $etype, int $eid): void {
