@@ -13,6 +13,13 @@ use Drupal\node\Entity\Node;
 class FileLinkUsagePrivateFileTest extends FileLinkUsageKernelTestBase {
 
   /**
+   * Temporary directory for private files.
+   *
+   * @var string
+   */
+  protected string $privateDirectory;
+
+  /**
    * {@inheritdoc}
    */
   protected static $modules = [
@@ -27,12 +34,35 @@ class FileLinkUsagePrivateFileTest extends FileLinkUsageKernelTestBase {
   ];
 
   /**
+   * {@inheritdoc}
+   */
+  protected function setUp(): void {
+    parent::setUp();
+
+    // Create a temporary directory for private files.
+    $this->privateDirectory = sys_get_temp_dir() . '/filelink_usage_private_' . uniqid();
+    if (!file_exists($this->privateDirectory)) {
+      mkdir($this->privateDirectory, 0777, TRUE);
+    }
+
+    // Configure Drupal to use this directory for the private file system.
+    $this->config('system.file')
+      ->set('path.private', $this->privateDirectory)
+      ->save();
+  }
+
+  /**
    * Tests detection of private file links.
    */
   public function testPrivateFileLink(): void {
     $uri = 'private://secret.txt';
+    $fs = $this->container->get('file_system');
+    $directory = $fs->realpath('private://');
+    if (!file_exists($directory)) {
+      mkdir($directory, 0777, TRUE);
+    }
     file_put_contents(
-      $this->container->get('file_system')->realpath($uri),
+      $fs->realpath($uri),
       'secret'
     );
     $file = File::create([
