@@ -26,6 +26,7 @@ function filelink_usage_cron(): void {
  */
 function filelink_usage_entity_insert(EntityInterface $entity): void {
   $manager = \Drupal::service('filelink_usage.manager');
+  $scanner = \Drupal::service('filelink_usage.scanner');
 
   switch ($entity->getEntityTypeId()) {
     case 'file':
@@ -35,10 +36,10 @@ function filelink_usage_entity_insert(EntityInterface $entity): void {
       break;
 
     default:
-      // Newly created content may contain hard‑coded links – rescan next cron.
+      // Newly created content may contain hard‑coded links – scan immediately.
       $entity_type = $entity->getEntityType();
       if ($entity_type instanceof ContentEntityTypeInterface) {
-        $manager->markEntityForScan($entity->getEntityTypeId(), $entity->id());
+        $scanner->scanEntity($entity);
       }
   }
 }
@@ -47,11 +48,10 @@ function filelink_usage_entity_insert(EntityInterface $entity): void {
  * Implements hook_entity_update().
  */
 function filelink_usage_entity_update(EntityInterface $entity): void {
-  // Any content edit might add/remove links – mark for re‑scan.
+  // Any content edit might add/remove links – scan immediately.
   $entity_type = $entity->getEntityType();
   if ($entity_type instanceof ContentEntityTypeInterface) {
-    \Drupal::service('filelink_usage.manager')
-      ->markEntityForScan($entity->getEntityTypeId(), $entity->id());
+    \Drupal::service('filelink_usage.scanner')->scanEntity($entity);
   }
 }
 

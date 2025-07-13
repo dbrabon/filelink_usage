@@ -155,6 +155,13 @@ class FileLinkUsageManager {
   }
 
   /**
+   * Reconcile usage for a specific node ID.
+   */
+  public function reconcileNodeUsage(int $nid): void {
+    $this->reconcileEntityUsage('node', $nid);
+  }
+
+  /**
    * Remove usage records for a deleted file.
    */
   public function removeFileUsage(FileInterface $file): void {

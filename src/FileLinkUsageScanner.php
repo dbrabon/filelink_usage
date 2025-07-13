@@ -27,8 +27,9 @@ class FileLinkUsageScanner {
   protected ConfigFactoryInterface $configFactory;
   protected TimeInterface $time;
   protected LoggerChannelInterface $logger;
+  protected FileLinkUsageNormalizer $normalizer;
 
-  public function __construct(EntityTypeManagerInterface $entityTypeManager, RendererInterface $renderer, Connection $database, FileUsageInterface $fileUsage, ConfigFactoryInterface $configFactory, TimeInterface $time, LoggerChannelInterface $logger) {
+  public function __construct(EntityTypeManagerInterface $entityTypeManager, RendererInterface $renderer, Connection $database, FileUsageInterface $fileUsage, ConfigFactoryInterface $configFactory, TimeInterface $time, LoggerChannelInterface $logger, FileLinkUsageNormalizer $normalizer) {
     $this->entityTypeManager = $entityTypeManager;
     $this->renderer = $renderer;
     $this->database = $database;
@@ -36,6 +37,7 @@ class FileLinkUsageScanner {
     $this->configFactory = $configFactory;
     $this->time = $time;
     $this->logger = $logger;
+    $this->normalizer = $normalizer;
   }
 
   /**
@@ -140,6 +142,9 @@ class FileLinkUsageScanner {
       else {
         continue;
       }
+
+      // Normalize the URI (remove query strings, duplicate slashes, decoding etc.).
+      $file_uri = $this->normalizer->normalize($file_uri);
       // Check if there is a managed File entity for this URI.
       $fid = NULL;
       $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $file_uri]);
