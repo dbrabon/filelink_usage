@@ -91,6 +91,8 @@ class FileLinkUsageReconcileTest extends FileLinkUsageKernelTestBase {
     // Reconcile should restore usage for file1 and remove from file2.
     $this->container->get('filelink_usage.manager')
       ->reconcileEntityUsage('node', $node->id());
+    // Apply reconciliation immediately by rescanning the node.
+    $this->container->get('filelink_usage.scanner')->scan(['node' => [$node->id()]]);
 
     $usage1 = $this->container->get('file.usage')->listUsage($file1);
     $this->assertArrayHasKey($node->id(), $usage1['filelink_usage']['node']);
