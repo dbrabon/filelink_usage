@@ -57,8 +57,8 @@ class FileLinkUsageFileHooksTest extends FileLinkUsageKernelTestBase {
     $this->assertEquals(0, $count);
 
     $usage_count = $database->select('file_usage', 'fu')
-      ->countQuery()
       ->condition('id', $node->id())
+      ->countQuery()
       ->execute()
       ->fetchField();
     $this->assertEquals(0, $usage_count);
