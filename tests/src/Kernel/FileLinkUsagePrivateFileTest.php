@@ -46,9 +46,7 @@ class FileLinkUsagePrivateFileTest extends FileLinkUsageKernelTestBase {
     }
 
     // Configure Drupal to use this directory for the private file system.
-    $this->config('system.file')
-      ->set('path.private', $this->privateDirectory)
-      ->save();
+    \Drupal::service('settings')->set('file_private_path', $this->privateDirectory);
   }
 
   /**
