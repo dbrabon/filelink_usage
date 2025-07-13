@@ -42,7 +42,8 @@ class FileLinkUsageFileHooksTest extends KernelTestBase {
       'filelink_usage_matches',
       'filelink_usage_scan_status',
     ]);
-    $this->installConfig(['node', 'filter']);
+    $this->installSchema('node', ['node_access']);
+    $this->installConfig(['node', 'filter', 'system']);
 
     NodeType::create(['type' => 'article', 'name' => 'Article'])->save();
   }
