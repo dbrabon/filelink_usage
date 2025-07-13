@@ -11,6 +11,7 @@ use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\filelink_usage\FileLinkUsageNormalizer;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\node\NodeInterface;
 use Drupal\file\FileInterface;
@@ -27,8 +28,9 @@ class FileLinkUsageScanner {
   protected ConfigFactoryInterface $configFactory;
   protected TimeInterface $time;
   protected LoggerChannelInterface $logger;
+  protected FileLinkUsageNormalizer $normalizer;
 
-  public function __construct(EntityTypeManagerInterface $entityTypeManager, RendererInterface $renderer, Connection $database, FileUsageInterface $fileUsage, ConfigFactoryInterface $configFactory, TimeInterface $time, LoggerChannelInterface $logger) {
+  public function __construct(EntityTypeManagerInterface $entityTypeManager, RendererInterface $renderer, Connection $database, FileUsageInterface $fileUsage, ConfigFactoryInterface $configFactory, TimeInterface $time, LoggerChannelInterface $logger, FileLinkUsageNormalizer $normalizer) {
     $this->entityTypeManager = $entityTypeManager;
     $this->renderer = $renderer;
     $this->database = $database;
@@ -36,6 +38,7 @@ class FileLinkUsageScanner {
     $this->configFactory = $configFactory;
     $this->time = $time;
     $this->logger = $logger;
+    $this->normalizer = $normalizer;
   }
 
   /**
@@ -113,57 +116,25 @@ class FileLinkUsageScanner {
     preg_match_all('/(?:src|href)="([^"]*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"]+)"/i', $html, $matches);
     $file_urls = $matches[1] ?? [];
 
-    // Track found file URIs and avoid counting duplicates within this entity.
-    $found_uris = [];
-    $fid_counts = [];
+    // Track found file URIs (deduplicated) and associated file IDs if present.
+    $found_links = [];
     foreach ($file_urls as $url) {
-      $uri = NULL;
-      if (strpos($url, '/sites/default/files/') !== FALSE) {
-        // Prefix base URL for relative file links on public file system.
-        $uri = \Drupal::request()->getSchemeAndHttpHost() . $url;
-      }
-      elseif (strpos($url, '/system/files/') !== FALSE || strpos($url, '://') !== FALSE) {
-        // Already an absolute URL or stream wrapper (private://).
-        $uri = $url;
-      }
-      if (!$uri) {
+      $file_uri = $this->normalizer->normalize($url);
+      if (!$file_uri) {
         continue;
       }
-      // Normalize to Drupal stream URI (public:// or private://).
-      $file_uri = preg_replace('/^https?:\\/\\//', '', $uri);
-      if ($file_uri && str_contains($file_uri, '/sites/default/files/')) {
-        $file_uri = 'public://' . explode('/sites/default/files/', $file_uri, 2)[1];
-      }
-      elseif ($file_uri && str_contains($file_uri, '/system/files/')) {
-        $file_uri = 'private://' . explode('/system/files/', $file_uri, 2)[1];
-      }
-      else {
-        continue;
-      }
-      // Check if there is a managed File entity for this URI.
-      $fid = NULL;
-      $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $file_uri]);
-      if ($files) {
-        /** @var \Drupal\file\FileInterface $file_entity */
-        $file_entity = reset($files);
-        $fid = $file_entity->id();
-      }
-      if (!$fid) {
-        // Skip untracked file links (no File entity exists yet).
-        continue;
-      }
-      // Record this file (prevent duplicate counts per entity).
-      if (!isset($found_uris[$fid])) {
-        $found_uris[$fid] = $file_uri;
-        $fid_counts[$fid] = 1;
-      }
-      else {
-        $fid_counts[$fid]++;
+      if (!isset($found_links[$file_uri])) {
+        $fid = NULL;
+        $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $file_uri]);
+        if ($files) {
+          $fid = reset($files)->id();
+        }
+        $found_links[$file_uri] = $fid;
       }
     }
 
     // 2. If no file links are found now, remove any stale usage records.
-    if (empty($found_uris)) {
+    if (empty($found_links)) {
       $changed = [];
       if (!empty($old_links)) {
         // Previously had file links, now none – remove all usage entries.
@@ -225,7 +196,7 @@ class FileLinkUsageScanner {
     };
 
     $changed = [];
-    foreach ($found_uris as $fid => $uri) {
+    foreach ($found_links as $uri => $fid) {
       // Upsert a tracking record of this file link in our database.
       if ($table === 'filelink_usage_matches') {
         $this->database->merge('filelink_usage_matches')
@@ -260,7 +231,7 @@ class FileLinkUsageScanner {
 
     // 4. Remove usage for any file links that were previously present but are now gone.
     foreach ($old_links as $old_link) {
-      if (!in_array($old_link, $found_uris)) {
+      if (!array_key_exists($old_link, $found_links)) {
         // This link was tracked before but is no longer in the content.
         $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $old_link]);
         $file = $files ? reset($files) : NULL;
@@ -292,7 +263,7 @@ class FileLinkUsageScanner {
     }
 
     // 5. Ensure no duplicate usage entries remain if the same file appears multiple times.
-    foreach ($found_uris as $fid => $uri) {
+    foreach ($found_links as $uri => $fid) {
       /** @var \Drupal\file\FileInterface $file */
       $file = $this->entityTypeManager->getStorage('file')->load($fid);
       if ($file) {
@@ -318,7 +289,7 @@ class FileLinkUsageScanner {
       $entity_label = $entity instanceof NodeInterface
         ? $entity->label()
         : ($entity_type === 'taxonomy_term' ? $entity->label() : $entity->bundle());
-      $new_count = count($found_uris);
+      $new_count = count($found_links);
       $old_count = count($old_links);
       $message = '';
       if ($new_count === 0 && $old_count > 0) {
@@ -337,7 +308,7 @@ class FileLinkUsageScanner {
       }
       else {
         // Same count, but links might have changed (replacements).
-        $new_set = array_values($found_uris);
+        $new_set = array_keys($found_links);
         sort($new_set);
         $old_sorted = $old_links;
         sort($old_sorted);

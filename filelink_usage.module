@@ -29,16 +29,14 @@ function filelink_usage_entity_insert(EntityInterface $entity): void {
 
   switch ($entity->getEntityTypeId()) {
     case 'file':
-      // Just invalidate the new file’s cache‑tag so “Used In” shows 0 instantly.
       /** @var \Drupal\file\FileInterface $entity */
       $manager->addUsageForFile($entity);
       break;
 
     default:
-      // Newly created content may contain hard‑coded links – rescan next cron.
       $entity_type = $entity->getEntityType();
       if ($entity_type instanceof ContentEntityTypeInterface) {
-        $manager->markEntityForScan($entity->getEntityTypeId(), $entity->id());
+        \Drupal::service('filelink_usage.scanner')->scanEntity($entity);
       }
   }
 }
@@ -47,11 +45,9 @@ function filelink_usage_entity_insert(EntityInterface $entity): void {
  * Implements hook_entity_update().
  */
 function filelink_usage_entity_update(EntityInterface $entity): void {
-  // Any content edit might add/remove links – mark for re‑scan.
   $entity_type = $entity->getEntityType();
   if ($entity_type instanceof ContentEntityTypeInterface) {
-    \Drupal::service('filelink_usage.manager')
-      ->markEntityForScan($entity->getEntityTypeId(), $entity->id());
+    \Drupal::service('filelink_usage.scanner')->scanEntity($entity);
   }
 }
 

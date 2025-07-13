@@ -64,6 +64,13 @@ class FileLinkUsageManager {
    * appears immediately with “0”.
    */
   public function addUsageForFile(FileInterface $file): void {
+    $uri = $file->getFileUri();
+    $query = $this->database->select('filelink_usage_matches', 'f')
+      ->fields('f', ['entity_type', 'entity_id'])
+      ->condition('link', $uri);
+    foreach ($query->execute() as $row) {
+      $this->fileUsage->add($file, 'filelink_usage', $row->entity_type, (int) $row->entity_id);
+    }
     \Drupal::service('cache_tags.invalidator')->invalidateTags(['file:' . $file->id()]);
   }
 
@@ -152,6 +159,13 @@ class FileLinkUsageManager {
    */
   public function cleanupNode(NodeInterface $node): void {
     $this->reconcileEntityUsage('node', $node->id(), TRUE);
+  }
+
+  /**
+   * Convenience wrapper to reconcile usage for a node.
+   */
+  public function reconcileNodeUsage(int $nid): void {
+    $this->reconcileEntityUsage('node', $nid, FALSE);
   }
 
   /**
