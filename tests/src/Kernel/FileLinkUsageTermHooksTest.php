@@ -63,7 +63,7 @@ class FileLinkUsageTermHooksTest extends FileLinkUsageKernelTestBase {
       'name' => 'Term with link',
       'description' => [
         'value' => '<a href="/sites/default/files/term_link.txt">Download</a>',
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $term->save();

@@ -77,7 +77,7 @@ class FileLinkUsagePrivateFileTest extends FileLinkUsageKernelTestBase {
       'title' => 'Private file',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();

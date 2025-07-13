@@ -48,7 +48,7 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
       'title' => 'Hook insert',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -82,7 +82,7 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
       'title' => 'Hook update',
       'body' => [
         'value' => 'Initial body',
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -96,7 +96,7 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
 
     $node->set('body', [
       'value' => '<a href="/sites/default/files/hook_update.txt">Download</a>',
-      'format' => 'plain_text',
+      'format' => 'basic_html',
     ]);
     $node->save();
 
@@ -137,7 +137,7 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
       'title' => 'Replace usage',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -149,7 +149,7 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
     // Update to link to the second file.
     $node->set('body', [
       'value' => '<a href="/sites/default/files/hook_replace2.txt">Download</a>',
-      'format' => 'plain_text',
+      'format' => 'basic_html',
     ]);
     $node->save();
 
@@ -177,7 +177,7 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
       'title' => 'Hook delete',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();

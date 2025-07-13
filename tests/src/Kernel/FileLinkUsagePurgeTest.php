@@ -62,7 +62,7 @@ class FileLinkUsagePurgeTest extends FileLinkUsageKernelTestBase {
       'title' => 'Test node',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -113,7 +113,7 @@ class FileLinkUsagePurgeTest extends FileLinkUsageKernelTestBase {
       'title' => 'Test node 2',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
@@ -149,7 +149,7 @@ class FileLinkUsagePurgeTest extends FileLinkUsageKernelTestBase {
       'title' => 'Cron repopulate',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();

@@ -42,7 +42,7 @@ class FileLinkUsageFileHooksTest extends FileLinkUsageKernelTestBase {
       'title' => 'File hook',
       'body' => [
         'value' => $body,
-        'format' => 'plain_text',
+        'format' => 'basic_html',
       ],
     ]);
     $node->save();
