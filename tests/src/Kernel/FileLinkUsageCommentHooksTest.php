@@ -36,7 +36,7 @@ class FileLinkUsageCommentHooksTest extends FileLinkUsageKernelTestBase {
 
     $this->installEntitySchema('comment');
     $this->installConfig(['comment']);
-    comment_add_default_field('node', 'article');
+    \Drupal::service('comment.manager')->addDefaultField('node', 'article');
   }
 
   /**
