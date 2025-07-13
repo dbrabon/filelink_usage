@@ -54,7 +54,12 @@ class FileLinkUsagePurgeTest extends KernelTestBase {
     $this->installSchema('node', ['node_access']);
     $this->installConfig(['system', 'node', 'filter']);
 
-    NodeType::create(['type' => 'article', 'name' => 'Article'])->save();
+    $node_type = NodeType::create([
+      'type' => 'article',
+      'name' => 'Article',
+    ]);
+    $node_type->save();
+    node_add_body_field($node_type);
   }
 
   /**
