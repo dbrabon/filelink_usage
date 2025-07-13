@@ -77,6 +77,23 @@ Once installed and configured, Filelink Usage works mostly behind the scenes to 
 
 * **Purging and re-scanning:** If you need to reset the module’s tracking (for example, to troubleshoot or to force a complete rescan), you can use the **Purge saved file links** button in settings. Clicking purge will empty the module’s tables and clear its memory of what’s been scanned. Immediately after purging, Drupal cron (or a manual `drush cron` run) will trigger a **full scan** of all content on the next run. This is useful if you suspect the tracking is out of sync. After the full rescan, all current file links will be re-recorded and file usage counts refreshed. (Be aware that on large sites, a full scan can be intensive; adjust the cron frequency or do it during off-peak hours.)
 
+## Testing
+
+Kernel tests for this module are located in `tests/src/Kernel`. You will need a Drupal installation with PHPUnit configured. Copy `core/phpunit.xml.dist` to `phpunit.xml` in the Drupal root and update the database settings.
+
+Run the tests with PHPUnit:
+
+```bash
+vendor/bin/phpunit -c core modules/custom/filelink_usage/tests/src/Kernel
+```
+
+Or via Drush:
+
+```bash
+drush phpunit -- modules/custom/filelink_usage/tests/src/Kernel
+```
+
+These kernel tests verify the scanner hooks and purge behavior.
 ## Cron Behavior
 
 Drupal’s Cron plays a key role in ongoing maintenance of file link usage data. On each cron run, `filelink_usage` checks if any content needs to be rescanned based on the configured frequency:
