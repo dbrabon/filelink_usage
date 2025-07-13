@@ -2,18 +2,17 @@
 
 namespace Drupal\Tests\filelink_usage\Kernel;
 
-use Drupal\KernelTests\KernelTestBase;
+use Drupal\Tests\filelink_usage\Kernel\FileLinkUsageKernelTestBase;
 use Drupal\file\Entity\File;
 use Drupal\block_content\Entity\BlockContent;
 use Drupal\block_content\Entity\BlockContentType;
-use Drupal\node\Entity\NodeType;
 
 /**
  * Tests automatic scanning via block insert hooks.
  *
  * @group filelink_usage
  */
-class FileLinkUsageBlockContentHooksTest extends KernelTestBase {
+class FileLinkUsageBlockContentHooksTest extends FileLinkUsageKernelTestBase {
 
   /**
    * {@inheritdoc}
@@ -37,24 +36,9 @@ class FileLinkUsageBlockContentHooksTest extends KernelTestBase {
   protected function setUp(): void {
     parent::setUp();
 
-    $this->installEntitySchema('user');
-    $this->installEntitySchema('file');
-    $this->installEntitySchema('node');
     $this->installEntitySchema('block_content');
-    $this->installSchema('file', ['file_usage']);
-    $this->installSchema('filelink_usage', [
-      'filelink_usage_matches',
-      'filelink_usage_scan_status',
-    ]);
-    $this->installSchema('node', ['node_access']);
-    $this->installConfig(['system', 'node', 'block_content', 'filter']);
+    $this->installConfig(['block_content']);
 
-    $node_type = NodeType::create([
-      'type' => 'article',
-      'name' => 'Article',
-    ]);
-    $node_type->save();
-    node_add_body_field($node_type);
     BlockContentType::create(['id' => 'basic', 'label' => 'Basic'])->save();
   }
 

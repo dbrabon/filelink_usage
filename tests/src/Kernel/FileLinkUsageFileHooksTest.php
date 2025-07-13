@@ -2,17 +2,16 @@
 
 namespace Drupal\Tests\filelink_usage\Kernel;
 
-use Drupal\KernelTests\KernelTestBase;
+use Drupal\Tests\filelink_usage\Kernel\FileLinkUsageKernelTestBase;
 use Drupal\file\Entity\File;
 use Drupal\node\Entity\Node;
-use Drupal\node\Entity\NodeType;
 
 /**
  * Tests file insert hooks create usage for saved links.
  *
  * @group filelink_usage
  */
-class FileLinkUsageFileHooksTest extends KernelTestBase {
+class FileLinkUsageFileHooksTest extends FileLinkUsageKernelTestBase {
 
   /**
    * {@inheritdoc}
@@ -31,27 +30,6 @@ class FileLinkUsageFileHooksTest extends KernelTestBase {
   /**
    * {@inheritdoc}
    */
-  protected function setUp(): void {
-    parent::setUp();
-
-    $this->installEntitySchema('user');
-    $this->installEntitySchema('file');
-    $this->installEntitySchema('node');
-    $this->installSchema('file', ['file_usage']);
-    $this->installSchema('filelink_usage', [
-      'filelink_usage_matches',
-      'filelink_usage_scan_status',
-    ]);
-    $this->installSchema('node', ['node_access']);
-    $this->installConfig(['system', 'node', 'filter']);
-
-    $node_type = NodeType::create([
-      'type' => 'article',
-      'name' => 'Article',
-    ]);
-    $node_type->save();
-    node_add_body_field($node_type);
-  }
 
   /**
    * Ensures file entity creation adds usage for saved links.
