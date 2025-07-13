@@ -147,6 +147,8 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
       ],
     ]);
     $node->save();
+    $this->container->get('filelink_usage.scanner')
+      ->scan(['node' => [$node->id()]]);
 
     // Usage should reference the first file.
     $usage1 = $this->container->get('file.usage')->listUsage($file1);
