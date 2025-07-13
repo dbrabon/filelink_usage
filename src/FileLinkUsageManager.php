@@ -307,6 +307,19 @@ class FileLinkUsageManager {
         ->execute();
     }
 
+    // Remove scan status entry for this entity.
+    if ($this->statusHasEntityColumns) {
+      $this->database->delete('filelink_usage_scan_status')
+        ->condition('entity_type', $etype)
+        ->condition('entity_id', $eid)
+        ->execute();
+    }
+    elseif ($etype === 'node') {
+      $this->database->delete('filelink_usage_scan_status')
+        ->condition('nid', $eid)
+        ->execute();
+    }
+
     if ($file_ids) {
       $tags = array_map(fn(int $id) => "file:$id", array_unique($file_ids));
       \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
