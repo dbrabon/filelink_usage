@@ -27,6 +27,7 @@ class FileLinkUsageScanner {
   protected ConfigFactoryInterface $configFactory;
   protected TimeInterface $time;
   protected LoggerChannelInterface $logger;
+  protected bool $statusHasEntityColumns;
 
   public function __construct(EntityTypeManagerInterface $entityTypeManager, RendererInterface $renderer, Connection $database, FileUsageInterface $fileUsage, ConfigFactoryInterface $configFactory, TimeInterface $time, LoggerChannelInterface $logger) {
     $this->entityTypeManager = $entityTypeManager;
@@ -36,6 +37,8 @@ class FileLinkUsageScanner {
     $this->configFactory = $configFactory;
     $this->time = $time;
     $this->logger = $logger;
+    $this->statusHasEntityColumns = $this->database->schema()
+      ->fieldExists('filelink_usage_scan_status', 'entity_type');
   }
 
   /**
@@ -211,6 +214,22 @@ class FileLinkUsageScanner {
           \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
         }
       }
+      $timestamp = $this->time->getRequestTime();
+      if ($this->statusHasEntityColumns) {
+        $this->database->merge('filelink_usage_scan_status')
+          ->keys([
+            'entity_type' => $entity_type,
+            'entity_id' => $entity->id(),
+          ])
+          ->fields(['scanned' => $timestamp])
+          ->execute();
+      }
+      elseif ($entity_type === 'node') {
+        $this->database->merge('filelink_usage_scan_status')
+          ->keys(['nid' => $entity->id()])
+          ->fields(['scanned' => $timestamp])
+          ->execute();
+      }
       return;
     }
 
@@ -363,6 +382,23 @@ class FileLinkUsageScanner {
         $tags = array_map(fn($fid) => "file:$fid", array_unique($changed));
         \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
       }
+    }
+
+    $timestamp = $this->time->getRequestTime();
+    if ($this->statusHasEntityColumns) {
+      $this->database->merge('filelink_usage_scan_status')
+        ->keys([
+          'entity_type' => $entity_type,
+          'entity_id' => $entity->id(),
+        ])
+        ->fields(['scanned' => $timestamp])
+        ->execute();
+    }
+    elseif ($entity_type === 'node') {
+      $this->database->merge('filelink_usage_scan_status')
+        ->keys(['nid' => $entity->id()])
+        ->fields(['scanned' => $timestamp])
+        ->execute();
     }
   }
 
