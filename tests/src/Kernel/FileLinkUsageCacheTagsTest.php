@@ -32,6 +32,13 @@ class FileLinkUsageCacheTagsTest extends FileLinkUsageKernelTestBase {
   protected array $invalidated = [];
 
   /**
+   * Records invalidated cache tags.
+   */
+  public function recordInvalidatedTags(array $tags): void {
+    $this->invalidated = array_merge($this->invalidated, $tags);
+  }
+
+  /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
@@ -42,7 +49,7 @@ class FileLinkUsageCacheTagsTest extends FileLinkUsageKernelTestBase {
       private $test;
       public function __construct($test) { $this->test = $test; }
       public function invalidateTags(array $tags): void {
-        $this->test->invalidated = array_merge($this->test->invalidated, $tags);
+        $this->test->recordInvalidatedTags($tags);
       }
     };
     $this->container->set('cache_tags.invalidator', $invalidator);
