@@ -7,7 +7,7 @@ use Drupal\file\Entity\File;
 use Drupal\node\Entity\Node;
 
 /**
- * Tests automatic scanning via node insert and update hooks.
+ * Tests scanning of nodes via insert and update hooks.
  *
  * @group filelink_usage
  */
@@ -52,6 +52,8 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
       ],
     ]);
     $node->save();
+    $this->container->get('filelink_usage.scanner')
+      ->scan(['node' => [$node->id()]]);
 
     $database = $this->container->get('database');
     $link = $database->select('filelink_usage_matches', 'f')
@@ -86,6 +88,8 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
       ],
     ]);
     $node->save();
+    $this->container->get('filelink_usage.scanner')
+      ->scan(['node' => [$node->id()]]);
 
     $database = $this->container->get('database');
     $count = $database->select('filelink_usage_matches')
@@ -99,6 +103,8 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
       'format' => 'basic_html',
     ]);
     $node->save();
+    $this->container->get('filelink_usage.scanner')
+      ->scan(['node' => [$node->id()]]);
 
     $link = $database->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
@@ -152,6 +158,8 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
       'format' => 'basic_html',
     ]);
     $node->save();
+    $this->container->get('filelink_usage.scanner')
+      ->scan(['node' => [$node->id()]]);
 
     $usage1 = $this->container->get('file.usage')->listUsage($file1);
     $this->assertEmpty($usage1['filelink_usage']['node'] ?? []);
@@ -181,8 +189,10 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
       ],
     ]);
     $node->save();
+    $this->container->get('filelink_usage.scanner')
+      ->scan(['node' => [$node->id()]]);
 
-    // Usage should be added on save via insert hook.
+    // Usage should be added after scanning.
     $usage = $this->container->get('file.usage')->listUsage($file);
     $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
 

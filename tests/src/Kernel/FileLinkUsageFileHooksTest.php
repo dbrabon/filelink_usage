@@ -46,15 +46,15 @@ class FileLinkUsageFileHooksTest extends FileLinkUsageKernelTestBase {
       ],
     ]);
     $node->save();
+    $this->container->get('filelink_usage.scanner')
+      ->scan(['node' => [$node->id()]]);
 
     $database = $this->container->get('database');
-    $link = $database->select('filelink_usage_matches', 'f')
-      ->fields('f', ['link'])
-      ->condition('entity_type', 'node')
-      ->condition('entity_id', $node->id())
+    $count = $database->select('filelink_usage_matches')
+      ->countQuery()
       ->execute()
       ->fetchField();
-    $this->assertEquals($uri, $link);
+    $this->assertEquals(0, $count);
 
     $usage_count = $database->select('file_usage', 'fu')
       ->countQuery()
@@ -69,6 +69,8 @@ class FileLinkUsageFileHooksTest extends FileLinkUsageKernelTestBase {
       'filename' => 'hook_file.txt',
     ]);
     $file->save();
+    $this->container->get('filelink_usage.scanner')
+      ->scan(['node' => [$node->id()]]);
 
     $usage = $this->container->get('file.usage')->listUsage($file);
     $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
