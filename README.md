@@ -1,8 +1,3 @@
-Great, I’ll now create a full rewrite of your README file targeting developers, site builders, and end users. It will document all the improvements, including support for scanning all entity types (not just nodes), usage deduplication, dynamic cache clearing, manager-scanner coordination, and manual scan triggers. The formatting will preserve your original markdown style but expand it with complete and exact technical guidance.
-
-I’ll get back to you shortly with the updated README ready for copy/paste.
-
-
 # Filelink Usage
 
 **Detect and track hard-coded file links in Drupal content to ensure accurate file usage.**
