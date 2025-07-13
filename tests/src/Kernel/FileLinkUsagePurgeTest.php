@@ -79,7 +79,8 @@ class FileLinkUsagePurgeTest extends FileLinkUsageKernelTestBase {
     // Call the purge handler.
     $form = SettingsForm::create($this->container);
     $form_state = new FormState();
-    $form->purgeFileLinkMatches([], $form_state);
+    $form_array = [];
+    $form->purgeFileLinkMatches($form_array, $form_state);
 
     $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
     $this->assertEquals(0, $count);
@@ -159,7 +160,8 @@ class FileLinkUsagePurgeTest extends FileLinkUsageKernelTestBase {
 
     $form = SettingsForm::create($this->container);
     $form_state = new FormState();
-    $form->purgeFileLinkMatches([], $form_state);
+    $form_array = [];
+    $form->purgeFileLinkMatches($form_array, $form_state);
 
     $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
     $this->assertEquals(0, $count);
