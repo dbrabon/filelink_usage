@@ -8,7 +8,7 @@ use Drupal\block_content\Entity\BlockContent;
 use Drupal\block_content\Entity\BlockContentType;
 
 /**
- * Tests automatic scanning via block insert hooks.
+ * Tests scanning of custom blocks via insert hooks.
  *
  * @group filelink_usage
  */
@@ -64,6 +64,8 @@ class FileLinkUsageBlockContentHooksTest extends FileLinkUsageKernelTestBase {
       ],
     ]);
     $block->save();
+    $this->container->get('filelink_usage.scanner')
+      ->scan(['block_content' => [$block->id()]]);
 
     $database = $this->container->get('database');
     $link = $database->select('filelink_usage_matches', 'f')
