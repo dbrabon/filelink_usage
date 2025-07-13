@@ -43,7 +43,7 @@ class FileLinkUsageCleanupTest extends KernelTestBase {
       'filelink_usage_scan_status',
     ]);
     $this->installSchema('node', ['node_access']);
-    $this->installConfig(['node', 'filter', 'system']);
+    $this->installConfig(['system', 'node', 'filter']);
 
     NodeType::create(['type' => 'article', 'name' => 'Article'])->save();
   }

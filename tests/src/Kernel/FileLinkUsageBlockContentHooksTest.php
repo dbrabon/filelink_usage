@@ -47,7 +47,7 @@ class FileLinkUsageBlockContentHooksTest extends KernelTestBase {
       'filelink_usage_scan_status',
     ]);
     $this->installSchema('node', ['node_access']);
-    $this->installConfig(['node', 'block_content', 'filter', 'system']);
+    $this->installConfig(['system', 'node', 'block_content', 'filter']);
 
     NodeType::create(['type' => 'article', 'name' => 'Article'])->save();
     BlockContentType::create(['id' => 'basic', 'label' => 'Basic'])->save();
