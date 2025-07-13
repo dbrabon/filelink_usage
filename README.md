@@ -2,11 +2,11 @@
 
 **Detect and track hard-coded file links in Drupal content to ensure accurate file usage.**
 
-The `filelink_usage` module scans all HTML-formatted text fields across a Drupal 10/11 site – including nodes, custom block content, paragraphs, and any other content entities – for hard-coded links to files in the public or private file systems. If a link matches a managed file, the module will add an entry to Drupal’s `file_usage` table (just as if the file were referenced via a File or Media field) so that the file is not treated as orphaned. This helps maintain correct file usage counts and prevents accidental deletion of files that are still in use.
+The `filelink_usage` module scans HTML-formatted text fields across a Drupal 10/11 site – currently nodes, custom block content, taxonomy terms, and comments – for hard-coded links to files in the public or private file systems. If a link matches a managed file, the module will add an entry to Drupal’s `file_usage` table (just as if the file were referenced via a File or Media field) so that the file is not treated as orphaned. This helps maintain correct file usage counts and prevents accidental deletion of files that are still in use.
 
 ## Features
 
-* 🗄️ **Scans all content entities with HTML fields:** Works on any entity type (nodes, blocks, paragraphs, etc.) that contains formatted text, not just nodes. The module automatically checks **all** relevant text fields (e.g. Body or custom WYSIWYG fields) for file links.
+* 🗄️ **Scans multiple content entity types with HTML fields:** Supports nodes, custom blocks, taxonomy terms, and comments by default. The module automatically checks **all** relevant text fields (e.g. Body or custom WYSIWYG fields) in those entities for file links.
 * 🔍 **Intelligent file link detection:** Uses an HTML scanner with regex to find `<img>` `src` or `<a>` `href` links pointing to `/sites/default/files/...` (public) or `/system/files/...` (private) paths. Supports both absolute URLs (including site domain) and relative file paths.
 * 🗃️ **Updates file usage accurately:** When a managed file is found linked in content, a usage record for that file–entity combination is added via Drupal’s File Usage service. Each file is counted **only once per entity**, no matter how many times it appears, to avoid duplicate usage entries.
 * ♻️ **No duplicate entries:** The scanning logic deduplicates records by entity and file. It ensures only one usage is recorded per file per content entity (removing any redundant or stale entries). Before adding a usage, the module even removes old usage records for that file–entity pair (including ones added by other modules) to prevent double-counting.
@@ -133,7 +133,7 @@ The module’s architecture is designed for clarity and extensibility. Key compo
   * It implements the logic for **scheduled scans** on cron. The manager’s `runCron()` method checks the configured interval and uses the scanner service to scan content that needs updating. It also handles the special case of full scans when no data is present.
   * It handles **rescan scheduling** for entities. For example, if an entity is deleted or if a file link is removed from content, the manager can mark that entity for rescan (or clean up immediately) as appropriate. In the code, `reconcileEntityUsage()` is used to either mark an entity for future scanning or purge its records if it’s gone.
   * The manager also responds to **file insertions**. When a new file is added to the system, the manager’s `addUsageForFile()` is invoked via hook\_entity\_insert. This method checks if the file’s URI matches any link that had been previously recorded in `filelink_usage_matches` (for which no file was found at the time). If so, it uses the File Usage service to add a usage for the corresponding entity. This allows the module to “retroactively” tie the file to content that referenced it.
-  * It handles **cleanup on deletions**. When a content entity (node, block, etc.) is deleted, `cleanupNode()` (or a generalized cleanup for any entity type) is called via hook\_entity\_delete. This removes all `filelink_usage` records for that entity and informs the File Usage service to decrement usage counts for the files that were referenced (to ensure nothing remains once the content is gone). Similarly, if a file entity is deleted, `removeFileUsage()` will wipe out any usage records that file had in the module’s tracking and in the file\_usage table.
+  * It handles **cleanup on deletions**. When a content entity (node, block, taxonomy term, or comment) is deleted, `cleanupNode()` (or a generalized cleanup for any entity type) is called via hook\_entity\_delete. This removes all `filelink_usage` records for that entity and informs the File Usage service to decrement usage counts for the files that were referenced (to ensure nothing remains once the content is gone). Similarly, if a file entity is deleted, `removeFileUsage()` will wipe out any usage records that file had in the module’s tracking and in the file\_usage table.
   * The manager and scanner are designed with separation of concerns: the manager decides **when** to scan or clean up, and the scanner handles **how** to scan and update records. Both are registered as Drupal services, allowing other modules or custom code to call them if needed.
 
 * **Database tables**: The module defines two custom tables for its operation:
@@ -143,7 +143,7 @@ The module’s architecture is designed for clarity and extensibility. Key compo
 
 * **Drupal hooks integration**: The module uses Drupal’s entity hooks to tie into content life cycle:
 
-  * `hook_entity_insert` and `hook_entity_update`: Implemented to trigger scanning when content is created or updated. Currently, this is wired for node entities and custom block content (and can be extended to any entity type with text fields). These hooks call the scanner service on the new or updated entity.
+  * `hook_entity_insert` and `hook_entity_update`: Implemented to trigger scanning when content is created or updated. Currently, this is wired for node entities, custom block content, taxonomy terms, and comments (and can be extended to any entity type with text fields). These hooks call the scanner service on the new or updated entity.
   * `hook_entity_delete`: Implemented to clean up usage when content is deleted. Removes all matches for that entity and updates file usage counts accordingly.
   * `hook_cron`: Implemented to run the manager’s scheduled scanning logic on cron. This triggers the process described in **Cron Behavior** above.
 
@@ -180,7 +180,7 @@ By following these troubleshooting steps and best practices, you can ensure that
 
 ## Status
 
-**Project Status:** This module is under active development and is being used to manage file usage on Drupal 10/11 sites. The feature set has recently expanded (scanning all entity types, deduplication improvements, etc.), and it is considered stable for production use, although further testing and feedback are welcome. Always back up your database before widespread usage, and consider testing on a staging environment if you have a very large site.
+**Project Status:** This module is under active development and is being used to manage file usage on Drupal 10/11 sites. The feature set has recently expanded (scanning multiple entity types (nodes, custom block content, taxonomy terms, comments), deduplication improvements, etc.), and it is considered stable for production use, although further testing and feedback are welcome. Always back up your database before widespread usage, and consider testing on a staging environment if you have a very large site.
 
 Contributions in the form of bug reports, feature requests, and patches are appreciated. If you encounter an issue or have ideas for improvement, please open an issue in the project repository.
 
