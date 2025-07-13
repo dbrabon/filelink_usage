@@ -2,10 +2,9 @@
 
 namespace Drupal\Tests\filelink_usage\Kernel;
 
-use Drupal\KernelTests\KernelTestBase;
+use Drupal\Tests\filelink_usage\Kernel\FileLinkUsageKernelTestBase;
 use Drupal\file\Entity\File;
 use Drupal\node\Entity\Node;
-use Drupal\node\Entity\NodeType;
 use Drupal\Core\Form\FormState;
 use Drupal\filelink_usage\Form\SettingsForm;
 
@@ -14,7 +13,7 @@ use Drupal\filelink_usage\Form\SettingsForm;
  *
  * @group filelink_usage
  */
-class FileLinkUsagePurgeTest extends KernelTestBase {
+class FileLinkUsagePurgeTest extends FileLinkUsageKernelTestBase {
 
   /**
    * {@inheritdoc}
@@ -40,26 +39,9 @@ class FileLinkUsagePurgeTest extends KernelTestBase {
   protected function setUp(): void {
     parent::setUp();
 
-    $this->installEntitySchema('user');
-    $this->installEntitySchema('file');
-    $this->installEntitySchema('node');
     $this->installEntitySchema('block_content');
     $this->installEntitySchema('taxonomy_term');
     $this->installEntitySchema('comment');
-    $this->installSchema('file', ['file_usage']);
-    $this->installSchema('filelink_usage', [
-      'filelink_usage_matches',
-      'filelink_usage_scan_status',
-    ]);
-    $this->installSchema('node', ['node_access']);
-    $this->installConfig(['system', 'node', 'filter']);
-
-    $node_type = NodeType::create([
-      'type' => 'article',
-      'name' => 'Article',
-    ]);
-    $node_type->save();
-    node_add_body_field($node_type);
   }
 
   /**
