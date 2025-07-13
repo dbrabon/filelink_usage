@@ -37,16 +37,18 @@ class FileLinkUsagePrivateFileTest extends FileLinkUsageKernelTestBase {
    * {@inheritdoc}
    */
   protected function setUp(): void {
-    parent::setUp();
-
-    // Create a temporary directory for private files.
+    // Create a temporary directory for private files before the kernel boots.
     $this->privateDirectory = sys_get_temp_dir() . '/filelink_usage_private_' . uniqid();
     if (!file_exists($this->privateDirectory)) {
       mkdir($this->privateDirectory, 0777, TRUE);
     }
 
     // Configure Drupal to use this directory for the private file system.
-    \Drupal::service('settings')->set('file_private_path', $this->privateDirectory);
+    // Use KernelTestBase::setSetting() so the setting is available when the
+    // kernel is booted.
+    $this->setSetting('file_private_path', $this->privateDirectory);
+
+    parent::setUp();
   }
 
   /**
