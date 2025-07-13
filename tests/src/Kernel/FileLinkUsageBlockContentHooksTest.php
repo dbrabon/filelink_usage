@@ -39,7 +39,17 @@ class FileLinkUsageBlockContentHooksTest extends FileLinkUsageKernelTestBase {
     $this->installEntitySchema('block_content');
     $this->installConfig(['block_content']);
 
-    BlockContentType::create(['id' => 'basic', 'label' => 'Basic'])->save();
+    $block_type = BlockContentType::create(['id' => 'basic', 'label' => 'Basic']);
+    $block_type->save();
+    // Ensure the custom block type has a body field that is displayed in the
+    // "full" view mode so the scanner can detect file links within it.
+    block_content_add_body_field($block_type);
+    entity_get_display('block_content', 'basic', 'full')
+      ->setComponent('body', [
+        'label' => 'hidden',
+        'type' => 'text_default',
+      ])
+      ->save();
   }
 
   /**
