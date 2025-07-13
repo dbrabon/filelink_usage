@@ -70,13 +70,13 @@ class FileLinkUsageBlockContentHooksTest extends FileLinkUsageKernelTestBase {
     $database = $this->container->get('database');
     $link = $database->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
-      ->condition('entity_type', 'block_content')
+      ->condition('entity_type', 'block')
       ->condition('entity_id', $block->id())
       ->execute()
       ->fetchField();
     $this->assertEquals($uri, $link);
     $usage = $this->container->get('file.usage')->listUsage($file);
-    $this->assertArrayHasKey($block->id(), $usage['filelink_usage']['block_content']);
+    $this->assertArrayHasKey($block->id(), $usage['filelink_usage']['block']);
   }
 
 
