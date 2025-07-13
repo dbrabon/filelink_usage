@@ -45,11 +45,19 @@ class FileLinkUsageCacheTagsTest extends FileLinkUsageKernelTestBase {
     parent::setUp();
 
     $this->invalidated = [];
-    $invalidator = new class($this) {
+    $invalidator = new class($this) implements \Drupal\Core\Cache\CacheTagsInvalidatorInterface {
       private $test;
-      public function __construct($test) { $this->test = $test; }
+
+      public function __construct($test) {
+        $this->test = $test;
+      }
+
       public function invalidateTags(array $tags): void {
         $this->test->recordInvalidatedTags($tags);
+      }
+
+      public function invalidateTagsAsynchronously(array $tags): void {
+        $this->invalidateTags($tags);
       }
     };
     $this->container->set('cache_tags.invalidator', $invalidator);
