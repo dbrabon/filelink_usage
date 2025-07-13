@@ -5,6 +5,9 @@ namespace Drupal\Tests\filelink_usage\Kernel;
 use Drupal\Tests\filelink_usage\Kernel\FileLinkUsageKernelTestBase;
 use Drupal\file\Entity\File;
 use Drupal\node\Entity\Node;
+use Drupal\taxonomy\Entity\Term;
+use Drupal\taxonomy\Entity\Vocabulary;
+use Drupal\comment\Entity\Comment;
 
 /**
  * Ensures file usage entries are not duplicated when scanning.
@@ -24,14 +27,19 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
     'text',
     'file',
     'node',
+    'taxonomy',
+    'comment',
     'filelink_usage',
   ];
 
   /**
    * {@inheritdoc}
-   */
+  */
   protected function setUp(): void {
     parent::setUp();
+    $this->installEntitySchema('taxonomy_term');
+    $this->installEntitySchema('comment');
+    comment_add_default_field('node', 'article');
   }
 
   /**
@@ -247,6 +255,93 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
     $this->assertEquals('public://repop.txt', $link);
     $usage = $this->container->get('file.usage')->listUsage($file);
     $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
+  }
+
+  /**
+   * Scanning taxonomy terms records file usage.
+   */
+  public function testTaxonomyTermScanning(): void {
+    $uri = 'public://term.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri), 'txt');
+    $file = File::create([
+      'uri' => $uri,
+      'filename' => 'term.txt',
+    ]);
+    $file->save();
+
+    Vocabulary::create(['vid' => 'tags', 'name' => 'Tags'])->save();
+    $term = Term::create([
+      'name' => 'Test term',
+      'vid' => 'tags',
+      'description' => [
+        'value' => '<a href="/sites/default/files/term.txt">Download</a>',
+        'format' => 'plain_text',
+      ],
+    ]);
+    $term->save();
+
+    $this->container->get('filelink_usage.scanner')->scan(['taxonomy_term' => [$term->id()]]);
+
+    $link = $this->container->get('database')->select('filelink_usage_matches', 'f')
+      ->fields('f', ['link'])
+      ->condition('entity_type', 'taxonomy_term')
+      ->condition('entity_id', $term->id())
+      ->execute()
+      ->fetchField();
+
+    $this->assertEquals($uri, $link);
+    $usage = $this->container->get('file.usage')->listUsage($file);
+    $this->assertArrayHasKey($term->id(), $usage['filelink_usage']['taxonomy_term']);
+  }
+
+  /**
+   * Scanning comments records file usage.
+   */
+  public function testCommentScanning(): void {
+    $uri = 'public://comment.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri), 'txt');
+    $file = File::create([
+      'uri' => $uri,
+      'filename' => 'comment.txt',
+    ]);
+    $file->save();
+
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Node with comment',
+      'body' => [
+        'value' => 'Body',
+        'format' => 'plain_text',
+      ],
+    ]);
+    $node->save();
+
+    $comment = Comment::create([
+      'comment_type' => 'comment',
+      'entity_type' => 'node',
+      'field_name' => 'comment',
+      'entity_id' => $node->id(),
+      'uid' => 0,
+      'subject' => 'Test comment',
+      'comment_body' => [
+        'value' => '<a href="/sites/default/files/comment.txt">Download</a>',
+        'format' => 'plain_text',
+      ],
+    ]);
+    $comment->save();
+
+    $this->container->get('filelink_usage.scanner')->scan(['comment' => [$comment->id()]]);
+
+    $link = $this->container->get('database')->select('filelink_usage_matches', 'f')
+      ->fields('f', ['link'])
+      ->condition('entity_type', 'comment')
+      ->condition('entity_id', $comment->id())
+      ->execute()
+      ->fetchField();
+
+    $this->assertEquals($uri, $link);
+    $usage = $this->container->get('file.usage')->listUsage($file);
+    $this->assertArrayHasKey($comment->id(), $usage['filelink_usage']['comment']);
   }
 
 }
