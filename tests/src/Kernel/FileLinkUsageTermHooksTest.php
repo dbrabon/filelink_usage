@@ -23,6 +23,7 @@ class FileLinkUsageTermHooksTest extends FileLinkUsageKernelTestBase {
     'filter',
     'text',
     'file',
+    'node',
     'taxonomy',
     'filelink_usage',
   ];
