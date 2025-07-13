@@ -5,6 +5,10 @@ namespace Drupal\Tests\filelink_usage\Kernel;
 use Drupal\file\Entity\File;
 use Drupal\comment\Entity\Comment;
 use Drupal\node\Entity\Node;
+use Drupal\comment\Entity\CommentType;
+use Drupal\field\Entity\FieldStorageConfig;
+use Drupal\field\Entity\FieldConfig;
+use Drupal\comment\Plugin\Field\FieldType\CommentItemInterface;
 
 /**
  * Tests scanning comment bodies for file links.
@@ -36,7 +40,51 @@ class FileLinkUsageCommentHooksTest extends FileLinkUsageKernelTestBase {
 
     $this->installEntitySchema('comment');
     $this->installConfig(['comment']);
-    \Drupal::service('comment.manager')->addDefaultField('node', 'article');
+
+    // Create a basic comment type for nodes.
+    CommentType::create([
+      'id' => 'comment',
+      'label' => 'Comment',
+      'target_entity_type_id' => 'node',
+    ])->save();
+    \Drupal::service('comment.manager')->addBodyField('comment');
+
+    // Attach the comment field to the article content type.
+    FieldStorageConfig::create([
+      'entity_type' => 'node',
+      'field_name' => 'comment',
+      'type' => 'comment',
+      'settings' => [
+        'comment_type' => 'comment',
+      ],
+    ])->save();
+    FieldConfig::create([
+      'entity_type' => 'node',
+      'bundle' => 'article',
+      'field_name' => 'comment',
+      'label' => 'Comments',
+      'default_value' => [
+        [
+          'status' => CommentItemInterface::OPEN,
+        ],
+      ],
+    ])->save();
+    \Drupal::service('entity_display.repository')
+      ->getFormDisplay('node', 'article')
+      ->setComponent('comment', [
+        'type' => 'comment_default',
+        'weight' => 20,
+      ])
+      ->save();
+    \Drupal::service('entity_display.repository')
+      ->getViewDisplay('node', 'article')
+      ->setComponent('comment', [
+        'label' => 'above',
+        'type' => 'comment_default',
+        'weight' => 20,
+        'settings' => ['view_mode' => 'full'],
+      ])
+      ->save();
   }
 
   /**
