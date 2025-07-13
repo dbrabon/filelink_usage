@@ -101,16 +101,6 @@ class SettingsForm extends ConfigFormBase {
     $connection->truncate('filelink_usage_matches')->execute();
     \Drupal::service('filelink_usage.manager')->markAllForRescan();
 
-    // Mark all nodes for rescan in case additional modules rely on this hook.
-    $storage = Drupal::entityTypeManager()->getStorage('node');
-    $nids = $storage->getQuery()->accessCheck(FALSE)->execute();
-    if ($nids) {
-      $nodes = $storage->loadMultiple($nids);
-      foreach ($nodes as $node) {
-        filelink_usage_mark_for_rescan($node);
-      }
-    }
-
     $this->configFactory->getEditable('filelink_usage.settings')
       ->set('last_scan', 0)
       ->save();
