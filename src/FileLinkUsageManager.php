@@ -72,13 +72,11 @@ class FileLinkUsageManager {
         ->fields('f', ['entity_type', 'entity_id'])
         ->condition('link', $file->getFileUri());
 
-      $usage = $this->fileUsage->listUsage($file);
       foreach ($query->execute() as $row) {
         $type = $row->entity_type;
         $id   = (int) $row->entity_id;
-        if (empty($usage['filelink_usage'][$type][$id])) {
+        if (!$this->usageExists((int) $file->id(), $type, $id)) {
           $this->fileUsage->add($file, 'filelink_usage', $type, $id);
-          $usage['filelink_usage'][$type][$id] = 1;
         }
       }
     }
@@ -242,8 +240,7 @@ class FileLinkUsageManager {
       }
       /** @var \Drupal\file\FileInterface $file */
       $file = reset($files);
-      $usage = $this->fileUsage->listUsage($file);
-      if (empty($usage['filelink_usage'][$target_type][$entity_id])) {
+      if (!$this->usageExists((int) $file->id(), $target_type, $entity_id)) {
         $this->fileUsage->add($file, 'filelink_usage', $target_type, $entity_id);
         $file_ids[] = $file->id();
       }
@@ -456,6 +453,20 @@ class FileLinkUsageManager {
       $tags = array_map(fn(int $id) => "file:$id", array_unique($file_ids));
       \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
     }
+  }
+
+  /**
+   * Check if a file_usage row already exists for the given mapping.
+   */
+  private function usageExists(int $fid, string $type, int $id): bool {
+    return (bool) $this->database->select('file_usage', 'fu')
+      ->condition('fid', $fid)
+      ->condition('module', 'filelink_usage')
+      ->condition('type', $type)
+      ->condition('id', $id)
+      ->countQuery()
+      ->execute()
+      ->fetchField();
   }
 
 }
