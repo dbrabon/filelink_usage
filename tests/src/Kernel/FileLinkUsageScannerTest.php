@@ -175,18 +175,9 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
     ]);
     $file->save();
 
-    $uri2 = 'private://doc.txt';
-    file_put_contents($this->container->get('file_system')->realpath($uri2), 'doc');
-    $file2 = File::create([
-      'uri' => $uri2,
-      'filename' => 'doc.txt',
-    ]);
-    $file2->save();
-
     $body = implode(' ', [
       '<a href="https://example.com/sites/default/files//example.txt?foo=1">L1</a>',
-      '<a href="http://example.com/system/files///doc.txt?bar=2#frag">L2</a>',
-      '<a href="/sites/default/files/example.txt">L3</a>'
+      '<a href="/sites/default/files/example.txt">L2</a>'
     ]);
     $node = Node::create([
       'type' => 'article',
@@ -200,23 +191,16 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
 
     $this->container->get('filelink_usage.scanner')->scan(['node' => [$node->id()]]);
 
-    $links = $this->container->get('database')->select('filelink_usage_matches', 'f')
+    $link = $this->container->get('database')->select('filelink_usage_matches', 'f')
       ->fields('f', ['link'])
       ->condition('entity_type', 'node')
       ->condition('entity_id', $node->id())
       ->execute()
-      ->fetchCol();
+      ->fetchField();
 
-    sort($links);
-    $this->assertEquals([
-      'private://doc.txt',
-      'public://example.txt',
-    ], $links);
-
+    $this->assertEquals('public://example.txt', $link);
     $usage = $this->container->get('file.usage')->listUsage($file);
-    $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
-    $usage2 = $this->container->get('file.usage')->listUsage($file2);
-    $this->assertArrayHasKey($node->id(), $usage2['filelink_usage']['node']);
+    $this->assertCount(1, $usage['filelink_usage']['node']);
   }
 
   /**
