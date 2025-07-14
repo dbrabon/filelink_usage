@@ -68,6 +68,28 @@ function filelink_usage_schema() {
 }
 
 /**
+ * Implements hook_install().
+ */
+function filelink_usage_install(): void {
+  $schema = \Drupal::database()->schema();
+
+  $tables = [
+    'node_field_data',
+    'block_content_field_data',
+    'taxonomy_term_field_data',
+    'comment_field_data',
+  ];
+
+  foreach ($tables as $table) {
+    if (!$schema->tableExists($table)) {
+      return;
+    }
+  }
+
+  \Drupal::service('filelink_usage.manager')->runCron();
+}
+
+/**
  * Implements hook_uninstall().
  */
 function filelink_usage_uninstall() {
