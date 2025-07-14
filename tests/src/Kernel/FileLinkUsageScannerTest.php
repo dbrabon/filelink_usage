@@ -127,6 +127,43 @@ class FileLinkUsageScannerTest extends FileLinkUsageKernelTestBase {
   }
 
   /**
+   * Tests detection of links using single quotes.
+   */
+  public function testSingleQuotedLinkDetection(): void {
+    $uri = 'public://single.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri), 'txt');
+    $file = File::create([
+      'uri' => $uri,
+      'filename' => 'single.txt',
+    ]);
+    $file->save();
+
+    $body = "<a href='/sites/default/files/single.txt'>Download</a>";
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Single quote',
+      'body' => [
+        'value' => $body,
+        'format' => 'basic_html',
+      ],
+    ]);
+    $node->save();
+
+    $this->container->get('filelink_usage.scanner')->scan(['node' => [$node->id()]]);
+
+    $link = $this->container->get('database')->select('filelink_usage_matches', 'f')
+      ->fields('f', ['link'])
+      ->condition('entity_type', 'node')
+      ->condition('entity_id', $node->id())
+      ->execute()
+      ->fetchField();
+
+    $this->assertEquals($uri, $link);
+    $usage = $this->container->get('file.usage')->listUsage($file);
+    $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
+  }
+
+  /**
    * Tests link normalization handles hostnames, slashes and query strings.
    */
   public function testLinkNormalization(): void {

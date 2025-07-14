@@ -197,8 +197,8 @@ class FileLinkUsageScanner {
     $view_builder = $this->entityTypeManager->getViewBuilder($entity_type);
     $build = $view_builder->view($entity, 'full');
     $html = (string) $this->renderer->renderInIsolation($build);
-    preg_match_all('/(?:src|href)="([^"]*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"]+)"/i', $html, $matches);
-    $file_urls = $matches[1] ?? [];
+    preg_match_all('/(?:src|href)=(["\'])([^"\']*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"\']+)\1/i', $html, $matches);
+    $file_urls = $matches[2] ?? [];
 
     // Track found file URIs and avoid counting duplicates within this entity.
     $found_uris = [];
