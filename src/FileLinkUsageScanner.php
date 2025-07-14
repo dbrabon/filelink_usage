@@ -12,6 +12,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\filelink_usage\FileLinkUsageNormalizer;
+use Drupal\Core\Cache\CacheTagsInvalidatorInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\node\NodeInterface;
 use Drupal\file\FileInterface;
@@ -29,9 +30,10 @@ class FileLinkUsageScanner {
   protected TimeInterface $time;
   protected LoggerChannelInterface $logger;
   protected FileLinkUsageNormalizer $normalizer;
+  protected CacheTagsInvalidatorInterface $cacheTagsInvalidator;
   protected bool $statusHasEntityColumns;
 
-  public function __construct(EntityTypeManagerInterface $entityTypeManager, RendererInterface $renderer, Connection $database, FileUsageInterface $fileUsage, ConfigFactoryInterface $configFactory, TimeInterface $time, LoggerChannelInterface $logger, FileLinkUsageNormalizer $normalizer) {
+  public function __construct(EntityTypeManagerInterface $entityTypeManager, RendererInterface $renderer, Connection $database, FileUsageInterface $fileUsage, ConfigFactoryInterface $configFactory, TimeInterface $time, LoggerChannelInterface $logger, FileLinkUsageNormalizer $normalizer, CacheTagsInvalidatorInterface $cacheTagsInvalidator) {
     $this->entityTypeManager = $entityTypeManager;
     $this->renderer = $renderer;
     $this->database = $database;
@@ -40,6 +42,7 @@ class FileLinkUsageScanner {
     $this->time = $time;
     $this->logger = $logger;
     $this->normalizer = $normalizer;
+    $this->cacheTagsInvalidator = $cacheTagsInvalidator;
     $this->statusHasEntityColumns = $this->database->schema()
       ->fieldExists('filelink_usage_scan_status', 'entity_type');
   }
@@ -64,7 +67,7 @@ class FileLinkUsageScanner {
     if (!empty($changedFileIds)) {
       $tags = array_map(fn($fid) => "file:$fid", array_unique($changedFileIds));
       $tags[] = 'file_list';
-      \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
+      $this->cacheTagsInvalidator->invalidateTags($tags);
     }
   }
 
@@ -276,7 +279,7 @@ class FileLinkUsageScanner {
         else {
           // Single-entity scan: invalidate file cache tags immediately.
           $tags = array_map(fn($fid) => "file:$fid", array_unique($changed));
-          \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
+          $this->cacheTagsInvalidator->invalidateTags($tags);
         }
       }
       $timestamp = $this->time->getRequestTime();
@@ -449,7 +452,7 @@ class FileLinkUsageScanner {
       else {
         // Standalone scan: immediately invalidate file cache tags.
         $tags = array_map(fn($fid) => "file:$fid", array_unique($changed));
-        \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
+        $this->cacheTagsInvalidator->invalidateTags($tags);
       }
     }
 

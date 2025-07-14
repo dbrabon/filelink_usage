@@ -22,6 +22,7 @@ services:
       - '@datetime.time'
       - '@logger.channel.filelink_usage'
       - '@filelink_usage.normalizer'
+      - '@cache_tags.invalidator'
 
   filelink_usage.normalizer:
     class: Drupal\filelink_usage\FileLinkUsageNormalizer
@@ -36,3 +37,4 @@ services:
       - '@file.usage'
       - '@entity_type.manager'
       - '@filelink_usage.normalizer'
+      - '@cache_tags.invalidator'
