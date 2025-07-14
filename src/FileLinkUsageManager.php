@@ -298,6 +298,7 @@ class FileLinkUsageManager {
 
     if ($file_ids) {
       $tags = array_map(fn(int $id) => "file:$id", array_unique($file_ids));
+      $tags[] = 'entity_list:file';
       \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
     }
   }
@@ -451,6 +452,7 @@ class FileLinkUsageManager {
 
     if ($file_ids) {
       $tags = array_map(fn(int $id) => "file:$id", array_unique($file_ids));
+      $tags[] = 'entity_list:file';
       \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
     }
   }
