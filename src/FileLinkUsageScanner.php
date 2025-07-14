@@ -411,9 +411,10 @@ class FileLinkUsageScanner {
       }
     }
 
-    // 6. Log scan results (only if verbose logging is enabled and something changed).
+    // 6. Log scan results (only if the 'verbose_logging' setting is enabled and
+    //    something changed).
     $config = $this->configFactory->get('filelink_usage.settings');
-    if ($config->get('verbose')) {
+    if ($config->get('verbose_logging')) {
       $eid = $entity->id();
       // Use entity label if available, otherwise bundle name for identification.
       $entity_label = $entity instanceof NodeInterface
