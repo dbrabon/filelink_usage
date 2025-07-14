@@ -8,6 +8,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Cache\CacheTagsInvalidatorInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\file\FileInterface;
 use Drupal\node\NodeInterface;
@@ -24,6 +25,7 @@ class FileLinkUsageManager {
   protected FileUsageInterface $fileUsage;
   protected EntityTypeManagerInterface $entityTypeManager;
   protected FileLinkUsageNormalizer $normalizer;
+  protected CacheTagsInvalidatorInterface $cacheTagsInvalidator;
   protected bool $statusHasEntityColumns;
   protected bool $matchesHasEntityColumns;
 
@@ -34,7 +36,8 @@ class FileLinkUsageManager {
     FileLinkUsageScanner $scanner,
     FileUsageInterface $fileUsage,
     EntityTypeManagerInterface $entityTypeManager,
-    FileLinkUsageNormalizer $normalizer
+    FileLinkUsageNormalizer $normalizer,
+    CacheTagsInvalidatorInterface $cacheTagsInvalidator
   ) {
     $this->database            = $database;
     $this->configFactory       = $configFactory;
@@ -43,6 +46,7 @@ class FileLinkUsageManager {
     $this->fileUsage           = $fileUsage;
     $this->entityTypeManager   = $entityTypeManager;
     $this->normalizer          = $normalizer;
+    $this->cacheTagsInvalidator = $cacheTagsInvalidator;
 
     // Detect new/legacy schemas on install/upgrade.
     $this->statusHasEntityColumns  = $this->database->schema()
@@ -82,7 +86,7 @@ class FileLinkUsageManager {
     }
 
     // Invalidate the file's cache tag so any usage displays update promptly.
-    \Drupal::service('cache_tags.invalidator')->invalidateTags(['file:' . $file->id()]);
+    $this->cacheTagsInvalidator->invalidateTags(['file:' . $file->id()]);
   }
 
   /**
@@ -134,7 +138,7 @@ class FileLinkUsageManager {
 
     if (!empty($changed)) {
       $tags = array_map(fn(int $fid) => "file:$fid", array_unique($changed));
-      \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
+      $this->cacheTagsInvalidator->invalidateTags($tags);
     }
 
     $config->set('last_scan', $now)->save();
@@ -300,7 +304,7 @@ class FileLinkUsageManager {
     if ($file_ids) {
       $tags = array_map(fn(int $id) => "file:$id", array_unique($file_ids));
       $tags[] = 'file_list';
-      \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
+      $this->cacheTagsInvalidator->invalidateTags($tags);
     }
   }
 
@@ -466,7 +470,7 @@ class FileLinkUsageManager {
     if ($file_ids) {
       $tags = array_map(fn(int $id) => "file:$id", array_unique($file_ids));
       $tags[] = 'file_list';
-      \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
+      $this->cacheTagsInvalidator->invalidateTags($tags);
     }
   }
 
