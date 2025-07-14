@@ -64,6 +64,26 @@ class FileLinkUsageManager {
    * appears immediately with “0”.
    */
   public function addUsageForFile(FileInterface $file): void {
+    // Check for stored link references to this file and register usage for
+    // each referencing entity. Older schema versions may not have the matches
+    // table, so guard against that scenario.
+    if ($this->database->schema()->tableExists('filelink_usage_matches')) {
+      $query = $this->database->select('filelink_usage_matches', 'f')
+        ->fields('f', ['entity_type', 'entity_id'])
+        ->condition('link', $file->getFileUri());
+
+      $usage = $this->fileUsage->listUsage($file);
+      foreach ($query->execute() as $row) {
+        $type = $row->entity_type;
+        $id   = (int) $row->entity_id;
+        if (empty($usage['filelink_usage'][$type][$id])) {
+          $this->fileUsage->add($file, 'filelink_usage', $type, $id);
+          $usage['filelink_usage'][$type][$id] = 1;
+        }
+      }
+    }
+
+    // Invalidate the file's cache tag so any usage displays update promptly.
     \Drupal::service('cache_tags.invalidator')->invalidateTags(['file:' . $file->id()]);
   }
 
@@ -166,19 +186,9 @@ class FileLinkUsageManager {
    * Remove usage records for a deleted file.
    */
   public function removeFileUsage(FileInterface $file): void {
-    $usage = $this->fileUsage->listUsage($file);
-    if (!empty($usage['filelink_usage'])) {
-      foreach ($usage['filelink_usage'] as $etype => $ids) {
-        foreach ($ids as $id => $count) {
-          while ($count-- > 0) {
-            $this->fileUsage->delete($file, 'filelink_usage', $etype, $id);
-          }
-        }
-      }
-    }
-    $this->database->delete('filelink_usage_matches')
-      ->condition('link', $file->getFileUri())
-      ->execute();
+    // Previous versions removed file usage entries when a file entity was
+    // deleted. This cleanup step has been disabled to preserve historical
+    // references. The method remains for API compatibility.
   }
 
   /**

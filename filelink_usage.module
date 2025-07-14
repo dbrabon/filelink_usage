@@ -74,8 +74,9 @@ function filelink_usage_entity_delete(EntityInterface $entity): void {
       break;
 
     case 'file':
-      /** @var \Drupal\file\FileInterface $entity */
-      $manager->removeFileUsage($entity);
+      // Intentionally left blank: managed file deletions no longer trigger
+      // any cleanup of usage records. This preserves existing references and
+      // avoids altering other entities' usage.
       break;
 
     default:
