@@ -4,6 +4,12 @@ use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\ContentEntityTypeInterface;
 use Drupal\file\FileInterface;
 use Drupal\node\NodeInterface;
+use Drupal\block_content\BlockContentInterface;
+use Drupal\taxonomy\TermInterface;
+use Drupal\comment\CommentInterface;
+use Drupal\paragraphs\ParagraphInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\file\FileUsage\FileUsageInterface;
 
 /**
  * ---------------------------------------------------------------------------
@@ -88,4 +94,155 @@ function filelink_usage_entity_delete(EntityInterface $entity): void {
  */
 function filelink_usage_mark_for_rescan(NodeInterface $node): void {
   \Drupal::service('filelink_usage.manager')->markEntityForScan('node', $node->id());
+}
+
+/**
+ * Extract file URIs from all text fields of an entity.
+ */
+function _filelink_usage_extract_uris(EntityInterface $entity): array {
+  $uris = [];
+  foreach ($entity->getFieldDefinitions() as $field_name => $definition) {
+    $type = $definition->getType();
+    if (!in_array($type, ['text', 'text_long', 'text_with_summary', 'string_long'], TRUE)) {
+      continue;
+    }
+    if (!$entity->hasField($field_name)) {
+      continue;
+    }
+    foreach ($entity->get($field_name)->getValue() as $item) {
+      $text = $item['value'] ?? '';
+      if ($text === '') {
+        continue;
+      }
+      preg_match_all('/(?:src|href)="([^"]*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"]+)"/i', $text, $matches);
+      foreach ($matches[1] ?? [] as $url) {
+        $uri = $url;
+        if (str_contains($url, '/sites/default/files/')) {
+          $uri = 'public://' . explode('/sites/default/files/', preg_replace('/^https?:\\/\\//', '', $url), 2)[1];
+        }
+        elseif (str_contains($url, '/system/files/')) {
+          $uri = 'private://' . explode('/system/files/', preg_replace('/^https?:\\/\\//', '', $url), 2)[1];
+        }
+        $uris[] = $uri;
+      }
+    }
+  }
+  return array_values(array_unique($uris));
+}
+
+/**
+ * Manage file usage for a presave entity.
+ */
+function _filelink_usage_manage_presave(EntityInterface $entity): void {
+  $id = $entity->id();
+  if (!$id) {
+    return;
+  }
+  $uris = _filelink_usage_extract_uris($entity);
+  \Drupal::service('filelink_usage.manager')->manageUsage($entity->getEntityTypeId(), $id, $uris);
+}
+
+/**
+ * Remove usage for a deleted entity.
+ */
+function _filelink_usage_cleanup_deleted(string $type, int $id, EntityTypeManagerInterface $etm, FileUsageInterface $usage): void {
+  $target_type = $type === 'block_content' ? 'block' : $type;
+  $database = \Drupal::database();
+  if (!$database->schema()->tableExists('filelink_usage_matches')) {
+    return;
+  }
+  $links = $database->select('filelink_usage_matches', 'f')
+    ->fields('f', ['link'])
+    ->condition('entity_type', $target_type)
+    ->condition('entity_id', $id)
+    ->execute()
+    ->fetchCol();
+  foreach ($links as $uri) {
+    $files = $etm->getStorage('file')->loadByProperties(['uri' => $uri]);
+    if (!$files) {
+      continue;
+    }
+    $file = reset($files);
+    $entry = $usage->listUsage($file);
+    if (!empty($entry['filelink_usage'][$target_type][$id])) {
+      $count = $entry['filelink_usage'][$target_type][$id];
+      while ($count-- > 0) {
+        $usage->delete($file, 'filelink_usage', $target_type, $id);
+      }
+    }
+  }
+  $database->delete('filelink_usage_matches')
+    ->condition('entity_type', $target_type)
+    ->condition('entity_id', $id)
+    ->execute();
+}
+
+/**
+ * Implements hook_node_presave().
+ */
+function filelink_usage_node_presave(NodeInterface $node): void {
+  _filelink_usage_manage_presave($node);
+}
+
+/**
+ * Implements hook_block_content_presave().
+ */
+function filelink_usage_block_content_presave(BlockContentInterface $block): void {
+  _filelink_usage_manage_presave($block);
+}
+
+/**
+ * Implements hook_taxonomy_term_presave().
+ */
+function filelink_usage_taxonomy_term_presave(TermInterface $term): void {
+  _filelink_usage_manage_presave($term);
+}
+
+/**
+ * Implements hook_comment_presave().
+ */
+function filelink_usage_comment_presave(CommentInterface $comment): void {
+  _filelink_usage_manage_presave($comment);
+}
+
+/**
+ * Implements hook_paragraph_presave().
+ */
+function filelink_usage_paragraph_presave(ParagraphInterface $paragraph): void {
+  _filelink_usage_manage_presave($paragraph);
+}
+
+/**
+ * Implements hook_node_delete().
+ */
+function filelink_usage_node_delete(NodeInterface $node): void {
+  _filelink_usage_cleanup_deleted('node', $node->id(), \Drupal::service('entity_type.manager'), \Drupal::service('file.usage'));
+}
+
+/**
+ * Implements hook_block_content_delete().
+ */
+function filelink_usage_block_content_delete(BlockContentInterface $block): void {
+  _filelink_usage_cleanup_deleted('block_content', $block->id(), \Drupal::service('entity_type.manager'), \Drupal::service('file.usage'));
+}
+
+/**
+ * Implements hook_taxonomy_term_delete().
+ */
+function filelink_usage_taxonomy_term_delete(TermInterface $term): void {
+  _filelink_usage_cleanup_deleted('taxonomy_term', $term->id(), \Drupal::service('entity_type.manager'), \Drupal::service('file.usage'));
+}
+
+/**
+ * Implements hook_comment_delete().
+ */
+function filelink_usage_comment_delete(CommentInterface $comment): void {
+  _filelink_usage_cleanup_deleted('comment', $comment->id(), \Drupal::service('entity_type.manager'), \Drupal::service('file.usage'));
+}
+
+/**
+ * Implements hook_paragraph_delete().
+ */
+function filelink_usage_paragraph_delete(ParagraphInterface $paragraph): void {
+  _filelink_usage_cleanup_deleted('paragraph', $paragraph->id(), \Drupal::service('entity_type.manager'), \Drupal::service('file.usage'));
 }
