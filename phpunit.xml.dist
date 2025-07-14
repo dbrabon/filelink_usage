@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="vendor/drupal/core/tests/bootstrap.php" colors="true">
+  <php>
+    <ini name="error_reporting" value="-1"/>
+  </php>
+  <testsuites>
+    <testsuite name="filelink_usage">
+      <directory>./tests/src</directory>
+    </testsuite>
+  </testsuites>
+</phpunit>

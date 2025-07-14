@@ -81,21 +81,14 @@ Once installed and configured, Filelink Usage works mostly behind the scenes to 
 
 ## Testing
 
-Kernel tests for this module are located in `tests/src/Kernel`. You will need a Drupal installation with PHPUnit configured. Copy `core/phpunit.xml.dist` to `phpunit.xml` in the Drupal root and update the database settings.
-
-Run the tests with PHPUnit:
+Kernel and unit tests are located under `tests/src`. Install the development dependencies first and run PHPUnit using the included configuration file.
 
 ```bash
-vendor/bin/phpunit -c core modules/custom/filelink_usage/tests/src/Kernel
+composer install --dev
+vendor/bin/phpunit
 ```
 
-Or via Drush:
-
-```bash
-drush phpunit -- modules/custom/filelink_usage/tests/src/Kernel
-```
-
-These kernel tests verify the scanner hooks and full scan behavior.
+These tests verify the scanner hooks and overall module behaviour.
 ## Cron Behavior
 
 Drupal’s Cron plays a key role in ongoing maintenance of file link usage data. On each cron run, `filelink_usage` checks if any content needs to be rescanned based on the configured frequency:

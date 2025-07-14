@@ -14,6 +14,9 @@
     "php": "^8.1"
   },
   "require-dev": {
-    "drush/drush": "^13.6"
+    "drush/drush": "^13.6",
+    "phpunit/phpunit": "^10",
+    "drupal/core-recommended": "^10",
+    "drupal/core-dev": "^10"
   }
 }
