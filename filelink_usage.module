@@ -116,8 +116,8 @@ function _filelink_usage_extract_uris(EntityInterface $entity): array {
       if ($text === '') {
         continue;
       }
-      preg_match_all('/(?:src|href)="([^"]*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"]+)"/i', $text, $matches);
-      foreach ($matches[1] ?? [] as $url) {
+      preg_match_all('/(?:src|href)=(["\'])([^"\']*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"\']+)\1/i', $text, $matches);
+      foreach ($matches[2] ?? [] as $url) {
         $uris[] = $normalizer->normalize($url);
       }
     }

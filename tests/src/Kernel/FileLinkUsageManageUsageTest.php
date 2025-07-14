@@ -70,6 +70,31 @@ class FileLinkUsageManageUsageTest extends FileLinkUsageKernelTestBase {
   }
 
   /**
+   * Single-quoted links are extracted during presave.
+   */
+  public function testNodePresaveSingleQuotedLink(): void {
+    $uri = 'public://single_presave.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri), 'txt');
+    $file = File::create(['uri' => $uri, 'filename' => 'single_presave.txt']);
+    $file->save();
+
+    $body = "<a href='/sites/default/files/single_presave.txt'>Download</a>";
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Presave single',
+      'body' => [
+        'value' => $body,
+        'format' => 'basic_html',
+      ],
+    ]);
+    $node->save();
+
+    // Saving the node should record usage via presave without scanning.
+    $usage = $this->container->get('file.usage')->listUsage($file);
+    $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
+  }
+
+  /**
    * Deleting a node removes usage via delete hook.
    */
   public function testNodeDeleteRemovesUsage(): void {
