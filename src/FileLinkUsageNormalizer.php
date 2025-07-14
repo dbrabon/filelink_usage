@@ -19,31 +19,30 @@ class FileLinkUsageNormalizer {
    *   The normalized URI (public:// or private:// where possible).
    */
   public function normalize(string $uri): string {
-    // Remove query strings and fragments.
-    $uri = preg_replace('/[#?].*/', '', $uri);
-
-    // Collapse duplicate slashes.
-    $uri = preg_replace('#/+#', '/', $uri);
+    // Extract just the path portion and decode percent-encoding.
+    $path = parse_url($uri, PHP_URL_PATH) ?? $uri;
+    $path = rawurldecode($path);
 
     // Remove trailing /index or /index.html type suffixes.
-    $uri = preg_replace('#/index(?:\.html?)?$#i', '', $uri);
+    $path = preg_replace('#/index(?:\.html?)?$#i', '', $path);
+
+    // Collapse duplicate slashes.
+    $path = preg_replace('#/+#', '/', $path);
 
     $public = '/sites/default/files/';
     $private = '/system/files/';
 
-    if (str_contains($uri, $public)) {
-      $path = preg_replace('#^https?://[^/]+#', '', $uri);
-      $path = explode($public, $path, 2)[1] ?? '';
+    if (str_starts_with($path, $public)) {
+      $path = substr($path, strlen($public));
       return 'public://' . ltrim($path, '/');
     }
 
-    if (str_contains($uri, $private)) {
-      $path = preg_replace('#^https?://[^/]+#', '', $uri);
-      $path = explode($private, $path, 2)[1] ?? '';
+    if (str_starts_with($path, $private)) {
+      $path = substr($path, strlen($private));
       return 'private://' . ltrim($path, '/');
     }
 
-    return $uri;
+    return $path;
   }
 
 }
