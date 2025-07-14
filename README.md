@@ -72,7 +72,7 @@ Once installed and configured, Filelink Usage works mostly behind the scenes to 
 
 ### Usage Examples
 
-* **Manual full scan via Drush:** Say you’ve just installed the module on an existing site and want to populate usage data immediately. Run `**drush filelink_usage:scan**`. The manager will process all configured entity types (by default nodes, and others if configured) using the cron scan routine. After it completes the `filelink_usage_matches` table will contain all detected references and file usage counts will be updated.
+* **Manual re-scan via Drush:** Installation now performs a full scan automatically. Use `drush filelink_usage:scan` if you later need to re-scan all content (such as after purging saved links). The manager will process all configured entity types using the cron scan routine and refresh file usage records.
 
 * **Adding a new file that content references:** Suppose an editor created a page with an HTML link to a PDF file that didn’t exist yet. After the file is uploaded, run `drush filelink_usage:scan` (or wait for cron) and the three cron scans will first record the link, then register its usage, ensuring it’s tracked once the file exists.
 * **Instant updates when editing content:** Saving a node, block, taxonomy term, comment, or paragraph triggers the `manageUsage()` hooks. They update or remove file usage immediately based on the links present, so you rarely have to wait for cron after an edit.
