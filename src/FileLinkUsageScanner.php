@@ -60,6 +60,7 @@ class FileLinkUsageScanner {
     // Invalidate file cache tags for all changed files in one operation.
     if (!empty($changedFileIds)) {
       $tags = array_map(fn($fid) => "file:$fid", array_unique($changedFileIds));
+      $tags[] = 'entity_list:file';
       \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
     }
   }
