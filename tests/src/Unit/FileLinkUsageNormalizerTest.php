@@ -12,8 +12,17 @@ use PHPUnit\Framework\TestCase;
 class FileLinkUsageNormalizerTest extends TestCase {
     public function testUrlNormalization(): void {
         $normalizer = new FileLinkUsageNormalizer();
-        $url = 'https://dev.example.com/sites/default/files/foo/bar.pdf?x=1#sec';
-        $this->assertEquals('public://foo/bar.pdf', $normalizer->normalize($url));
+
+        $cases = [
+            'https://dev.example.com/sites/default/files/foo/bar.pdf?x=1#sec' => 'public://foo/bar.pdf',
+            'http://example.com/system/files//doc.txt?y=2#frag' => 'private://doc.txt',
+            '/sites/default/files/My%20File.pdf' => 'public://My File.pdf',
+            'https://cdn.example.com/assets/manual.pdf?ver=1' => '/assets/manual.pdf',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $this->assertEquals($expected, $normalizer->normalize($input));
+        }
     }
 }
 
