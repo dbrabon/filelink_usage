@@ -12,5 +12,8 @@
   ],
   "require": {
     "php": "^8.1"
+  },
+  "require-dev": {
+    "drush/drush": "^13.6"
   }
 }
