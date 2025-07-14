@@ -149,33 +149,36 @@ function _filelink_usage_manage_presave(EntityInterface $entity): void {
 function _filelink_usage_cleanup_deleted(string $type, int $id, EntityTypeManagerInterface $etm, FileUsageInterface $usage): void {
   $target_type = $type === 'block_content' ? 'block' : $type;
   $database = \Drupal::database();
+
   if (!$database->schema()->tableExists('filelink_usage_matches')) {
     return;
   }
+
+  // Collect affected file IDs before the manager purges usage.
   $links = $database->select('filelink_usage_matches', 'f')
     ->fields('f', ['link'])
     ->condition('entity_type', $target_type)
     ->condition('entity_id', $id)
     ->execute()
     ->fetchCol();
+
+  $file_ids = [];
   foreach ($links as $uri) {
     $files = $etm->getStorage('file')->loadByProperties(['uri' => $uri]);
     if (!$files) {
       continue;
     }
     $file = reset($files);
-    $entry = $usage->listUsage($file);
-    if (!empty($entry['filelink_usage'][$target_type][$id])) {
-      $count = $entry['filelink_usage'][$target_type][$id];
-      while ($count-- > 0) {
-        $usage->delete($file, 'filelink_usage', $target_type, $id);
-      }
-    }
+    $file_ids[] = $file->id();
   }
-  $database->delete('filelink_usage_matches')
-    ->condition('entity_type', $target_type)
-    ->condition('entity_id', $id)
-    ->execute();
+
+  // Delegate cleanup to the manager, which removes usage and tracking rows.
+  \Drupal::service('filelink_usage.manager')
+    ->reconcileEntityUsage($target_type, $id, TRUE);
+
+  $tags = array_map(fn(int $fid) => "file:$fid", array_unique($file_ids));
+  $tags[] = 'entity_list:file';
+  \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
 }
 
 /**
