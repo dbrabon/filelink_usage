@@ -69,12 +69,11 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('How often cron should scan for file links.'),
     ];
 
-    $form['actions']['purge'] = [
+    $form['actions']['full_scan'] = [
       '#type' => 'submit',
-      '#value' => $this->t('Purge saved file links'),
-      '#submit' => ['::purgeFileLinkMatches'],
+      '#value' => $this->t('Run full scan now'),
+      '#submit' => ['::runFullScan'],
       '#limit_validation_errors' => [],
-      '#button_type' => 'danger',
       '#weight' => 10,
     ];
 
@@ -94,18 +93,19 @@ class SettingsForm extends ConfigFormBase {
   }
 
   /**
-   * Purges saved file link matches from the database.
+   * Runs a full file link scan immediately.
    */
-  public function purgeFileLinkMatches(array &$form, FormStateInterface $form_state): void {
-    $connection = Drupal::database();
-    $connection->truncate('filelink_usage_matches')->execute();
-    \Drupal::service('filelink_usage.manager')->markAllForRescan();
+  public function runFullScan(array &$form, FormStateInterface $form_state): void {
+    $manager = Drupal::service('filelink_usage.manager');
+    $manager->markAllForRescan();
 
     $this->configFactory->getEditable('filelink_usage.settings')
       ->set('last_scan', 0)
       ->save();
 
-    $this->messenger()->addMessage($this->t('All saved file links have been purged.'));
+    $manager->runCron();
+
+    $this->messenger()->addMessage($this->t('Full scan completed.'));
     $form_state->setRebuild();
   }
 

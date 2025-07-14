@@ -9,11 +9,11 @@ use Drupal\Core\Form\FormState;
 use Drupal\filelink_usage\Form\SettingsForm;
 
 /**
- * Tests purging saved file links and forcing a rescan via cron.
+ * Tests running a full scan from the settings form.
  *
  * @group filelink_usage
  */
-class FileLinkUsagePurgeTest extends FileLinkUsageKernelTestBase {
+class FileLinkUsageFullScanTest extends FileLinkUsageKernelTestBase {
 
   /**
    * {@inheritdoc}
@@ -45,9 +45,9 @@ class FileLinkUsagePurgeTest extends FileLinkUsageKernelTestBase {
   }
 
   /**
-   * Ensures purge removes data and cron performs a full rescan.
+   * Ensures the full scan button triggers a rescan.
    */
-  public function testPurgeAndCronRescan(): void {
+  public function testFullScanTriggersRescan(): void {
     $uri = 'public://example.txt';
     file_put_contents($this->container->get('file_system')->realpath($uri), 'example');
     $file = File::create([
@@ -76,23 +76,19 @@ class FileLinkUsagePurgeTest extends FileLinkUsageKernelTestBase {
     $count = $database->select('filelink_usage_scan_status')->countQuery()->execute()->fetchField();
     $this->assertGreaterThan(0, $count);
 
-    // Call the purge handler.
+    // Run the full scan handler.
     $form = SettingsForm::create($this->container);
     $form_state = new FormState();
     $form_array = [];
-    $form->purgeFileLinkMatches($form_array, $form_state);
+    $form->runFullScan($form_array, $form_state);
 
     $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
-    $this->assertEquals(0, $count);
-    $count = $database->select('filelink_usage_scan_status')->countQuery()->execute()->fetchField();
-    $this->assertEquals(0, $count);
-    $this->assertEquals(0, $this->config('filelink_usage.settings')->get('last_scan'));
-
-    // Run cron which should rescan the node.
-    $this->container->get('filelink_usage.manager')->runCron();
+    $this->assertGreaterThan(0, $count);
     $count = $database->select('filelink_usage_scan_status')->countQuery()->execute()->fetchField();
     $this->assertGreaterThan(0, $count);
     $this->assertGreaterThan(0, $this->config('filelink_usage.settings')->get('last_scan'));
+
+    // runFullScan() already executed the scan and updated timestamps.
   }
 
   /**
@@ -131,44 +127,5 @@ class FileLinkUsagePurgeTest extends FileLinkUsageKernelTestBase {
   }
 
 
-  /**
-   * Verifies that cron repopulates matches after purge.
-   */
-  public function testCronRepopulatesMatchesAfterPurge(): void {
-    $uri = 'public://repopulate.txt';
-    file_put_contents($this->container->get('file_system')->realpath($uri), 'txt');
-    $file = File::create([
-      'uri' => $uri,
-      'filename' => 'repopulate.txt',
-    ]);
-    $file->save();
-
-    $body = '<a href="/sites/default/files/repopulate.txt">Download</a>';
-    $node = Node::create([
-      'type' => 'article',
-      'title' => 'Cron repopulate',
-      'body' => [
-        'value' => $body,
-        'format' => 'basic_html',
-      ],
-    ]);
-    $node->save();
-
-    $this->container->get('filelink_usage.scanner')->scan(['node' => [$node->id()]]);
-
-    $database = $this->container->get('database');
-
-    $form = SettingsForm::create($this->container);
-    $form_state = new FormState();
-    $form_array = [];
-    $form->purgeFileLinkMatches($form_array, $form_state);
-
-    $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
-    $this->assertEquals(0, $count);
-
-    $this->container->get('filelink_usage.manager')->runCron();
-    $count = $database->select('filelink_usage_matches')->countQuery()->execute()->fetchField();
-    $this->assertGreaterThan(0, $count);
-  }
 
 }
