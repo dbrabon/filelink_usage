@@ -69,8 +69,6 @@ class FileLinkUsageFileHooksTest extends FileLinkUsageKernelTestBase {
       'filename' => 'hook_file.txt',
     ]);
     $file->save();
-    $this->container->get('filelink_usage.scanner')
-      ->scan(['node' => [$node->id()]]);
 
     $usage = $this->container->get('file.usage')->listUsage($file);
     $this->assertArrayHasKey($node->id(), $usage['filelink_usage']['node']);
