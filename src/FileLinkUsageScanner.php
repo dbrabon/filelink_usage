@@ -11,6 +11,7 @@ use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\filelink_usage\FileLinkUsageNormalizer;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\node\NodeInterface;
 use Drupal\file\FileInterface;
@@ -27,9 +28,10 @@ class FileLinkUsageScanner {
   protected ConfigFactoryInterface $configFactory;
   protected TimeInterface $time;
   protected LoggerChannelInterface $logger;
+  protected FileLinkUsageNormalizer $normalizer;
   protected bool $statusHasEntityColumns;
 
-  public function __construct(EntityTypeManagerInterface $entityTypeManager, RendererInterface $renderer, Connection $database, FileUsageInterface $fileUsage, ConfigFactoryInterface $configFactory, TimeInterface $time, LoggerChannelInterface $logger) {
+  public function __construct(EntityTypeManagerInterface $entityTypeManager, RendererInterface $renderer, Connection $database, FileUsageInterface $fileUsage, ConfigFactoryInterface $configFactory, TimeInterface $time, LoggerChannelInterface $logger, FileLinkUsageNormalizer $normalizer) {
     $this->entityTypeManager = $entityTypeManager;
     $this->renderer = $renderer;
     $this->database = $database;
@@ -37,6 +39,7 @@ class FileLinkUsageScanner {
     $this->configFactory = $configFactory;
     $this->time = $time;
     $this->logger = $logger;
+    $this->normalizer = $normalizer;
     $this->statusHasEntityColumns = $this->database->schema()
       ->fieldExists('filelink_usage_scan_status', 'entity_type');
   }
@@ -201,27 +204,8 @@ class FileLinkUsageScanner {
     $found_uris = [];
     $fid_counts = [];
     foreach ($file_urls as $url) {
-      $uri = NULL;
-      if (strpos($url, '/sites/default/files/') !== FALSE) {
-        // Prefix base URL for relative file links on public file system.
-        $uri = \Drupal::request()->getSchemeAndHttpHost() . $url;
-      }
-      elseif (strpos($url, '/system/files/') !== FALSE || strpos($url, '://') !== FALSE) {
-        // Already an absolute URL or stream wrapper (private://).
-        $uri = $url;
-      }
-      if (!$uri) {
-        continue;
-      }
-      // Normalize to Drupal stream URI (public:// or private://).
-      $file_uri = preg_replace('/^https?:\\/\\//', '', $uri);
-      if ($file_uri && str_contains($file_uri, '/sites/default/files/')) {
-        $file_uri = 'public://' . explode('/sites/default/files/', $file_uri, 2)[1];
-      }
-      elseif ($file_uri && str_contains($file_uri, '/system/files/')) {
-        $file_uri = 'private://' . explode('/system/files/', $file_uri, 2)[1];
-      }
-      else {
+      $file_uri = $this->normalizer->normalize($url);
+      if (!str_starts_with($file_uri, 'public://') && !str_starts_with($file_uri, 'private://')) {
         continue;
       }
       // Check if there is a managed File entity for this URI.

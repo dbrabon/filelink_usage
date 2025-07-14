@@ -102,6 +102,7 @@ function filelink_usage_mark_for_rescan(NodeInterface $node): void {
  */
 function _filelink_usage_extract_uris(EntityInterface $entity): array {
   $uris = [];
+  $normalizer = \Drupal::service('filelink_usage.normalizer');
   foreach ($entity->getFieldDefinitions() as $field_name => $definition) {
     $type = $definition->getType();
     if (!in_array($type, ['text', 'text_long', 'text_with_summary', 'string_long'], TRUE)) {
@@ -117,14 +118,7 @@ function _filelink_usage_extract_uris(EntityInterface $entity): array {
       }
       preg_match_all('/(?:src|href)="([^"]*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"]+)"/i', $text, $matches);
       foreach ($matches[1] ?? [] as $url) {
-        $uri = $url;
-        if (str_contains($url, '/sites/default/files/')) {
-          $uri = 'public://' . explode('/sites/default/files/', preg_replace('/^https?:\\/\\//', '', $url), 2)[1];
-        }
-        elseif (str_contains($url, '/system/files/')) {
-          $uri = 'private://' . explode('/system/files/', preg_replace('/^https?:\\/\\//', '', $url), 2)[1];
-        }
-        $uris[] = $uri;
+        $uris[] = $normalizer->normalize($url);
       }
     }
   }
