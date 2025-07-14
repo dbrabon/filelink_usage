@@ -42,7 +42,7 @@ On the settings page, you can adjust how and when the scanner runs:
 
 * **Cron Scan Frequency:** Choose how often Drupal Cron should trigger scanning of content. Options range from “Every cron run” to “Hourly”, “Daily”, up to “Yearly”. This determines the maximum age of content before it’s eligible for rescan. By default, the frequency is set to **Yearly**, meaning each content entity will be re-scanned at most once per year via cron (unless triggered by content edits).
 * **Verbose Logging (`verbose_logging`):** Enable this checkbox to turn on detailed logging. When enabled, the module will write log entries for each file link detected and each usage addition/removal. This is useful for debugging if you suspect a file link isn’t being detected. It’s recommended to keep this off on production for performance.
-* **Purge Saved File Links:** Clicking the **Purge** button on the settings form will **clear all stored link matches and reset scan history**. This action empties the `filelink_usage_matches` table (which tracks found file links) and the `filelink_usage_scan_status` table (which tracks last scan times), as well as resets the last global scan time. After purging, on the next cron run the module will treat it as a first-run and perform a full scan of all content.
+* **Full Scan Now:** Use the **Run full scan now** button on the settings form to immediately scan all configured content types. This marks everything for rescanning, runs the scanner, and refreshes file usage in one step.
 
 These configurations let you balance performance with immediacy. For example, on a large site you might set a weekly or monthly cron scan interval to gradually cover all content, whereas a smaller site could scan every cron run. Verbose logging (`verbose_logging`) can be toggled as needed to trace the module’s actions.
 
@@ -77,7 +77,7 @@ Once installed and configured, Filelink Usage works mostly behind the scenes to 
 * **Adding a new file that content references:** Suppose an editor created a page with an HTML link to a PDF file that didn’t exist yet. After the file is uploaded, run `drush filelink_usage:scan` (or wait for cron) and the three cron scans will first record the link, then register its usage, ensuring it’s tracked once the file exists.
 * **Instant updates when editing content:** Saving a node, block, taxonomy term, comment, or paragraph triggers the `manageUsage()` hooks. They update or remove file usage immediately based on the links present, so you rarely have to wait for cron after an edit.
 
-* **Purging and re-scanning:** If you need to reset the module’s tracking (for example, to troubleshoot or to force a complete rescan), you can use the **Purge saved file links** button in settings. Clicking purge will empty the module’s tables and clear its memory of what’s been scanned. Immediately after purging, Drupal cron (or a manual `drush cron` run) will trigger a **full scan** of all content on the next run. This is useful if you suspect the tracking is out of sync. After the full rescan, all current file links will be re-recorded and file usage counts refreshed. (Be aware that on large sites, a full scan can be intensive; adjust the cron frequency or do it during off-peak hours.)
+* **Forcing a full rescan:** If you suspect the tracking is out of sync or just want to refresh everything, click the **Run full scan now** button. This will immediately rescan all content and update usage counts. Be aware that on large sites a full scan can be intensive, so consider running it during off‑peak hours.
 
 ## Testing
 
@@ -95,7 +95,7 @@ Or via Drush:
 drush phpunit -- modules/custom/filelink_usage/tests/src/Kernel
 ```
 
-These kernel tests verify the scanner hooks and purge behavior.
+These kernel tests verify the scanner hooks and full scan behavior.
 ## Cron Behavior
 
 Drupal’s Cron plays a key role in ongoing maintenance of file link usage data. On each cron run, `filelink_usage` checks if any content needs to be rescanned based on the configured frequency:
@@ -106,11 +106,11 @@ The cron routine itself runs in three distinct scans:
 2. **Record usage** – any links from the matches table that now reference real files are added to `file_usage`.
 3. **Remove stale usage** – usage rows that lack a corresponding match (because the link was removed) are deleted.
 
-* If **no file link usages are recorded yet** (e.g. right after module install or after a purge), the module treats this as a first-run and will scan all content entities unconditionally on the next cron. This ensures initial data is collected without waiting for the interval.
+* If **no file link usages are recorded yet** (for example, right after module install or if the tables were manually cleared), the module treats this as a first-run and will scan all content entities unconditionally on the next cron. This ensures initial data is collected without waiting for the interval.
 * Otherwise, the module will only scan content that has gone longer than the set interval since its last scan. The last scan time for each entity is tracked in an internal table (`filelink_usage_scan_status`). For example, if frequency is “Monthly”, each content entity will be scanned at most once per month via cron. Content edited in the meantime is simply marked for scanning, so cron (or a manual run) processes those changes later.
 * Cron uses a rolling approach: it queries for entities (currently nodes, and in future possibly other types) whose last scan timestamp is older than the threshold and scans them. This spreads out the work so that not all content is scanned every time, which is important for performance on large sites. If the frequency is set to “Every cron run,” then cron will try to scan all content each run (not recommended for big sites).
 * After each cron-triggered scan, the module updates the `last_scan` time (in configuration or status table) for those entities. It also updates the global `last_scan` setting timestamp. If cron finds some content with no prior scan record, it includes those as well.
-* If at any point the module’s tracking tables are empty (no saved matches), cron will override the interval and perform a full scan. This design means if you purge data or the module is newly enabled, you don’t have to manually instruct a full crawl — cron knows to do it once to repopulate the data.
+* If at any point the module’s tracking tables are empty (no saved matches), cron will override the interval and perform a full scan. This design means if the tables are cleared or the module is newly enabled, you don’t have to manually instruct a full crawl — cron knows to do it once to repopulate the data.
 
 In summary, regular cron runs are recommended to catch any file links that might have been missed or that become valid later (such as files that are uploaded after content was created). Adjust the **Cron scan frequency** setting to control this behavior. For most sites the default (yearly per node) is conservative; if you prefer more frequent checking, set a smaller interval like weekly or daily, with the understanding that each interval’s cron run will add some overhead by scanning older content.
 
@@ -179,10 +179,9 @@ Having issues or unexpected results with Filelink Usage? Consider these tips:
   * Is Drupal’s cron running regularly? If the content was created *before* the module was enabled, it might not have been scanned yet. Run `drush filelink_usage:scan` manually or wait for cron to cover it.
   * Verify that the content’s text format allows the link. Sometimes Drupal may filter out or alter HTML links in certain formats. The module can only detect what is actually saved in the database after filtering.
   * Enable **Verbose logging** (`verbose_logging` setting) in the settings and save the content again. Then check **Reports → Recent log messages** for entries related to filelink\_usage. The log (when verbose_logging is on) will report what links were found and any usage actions taken, which can help pinpoint the issue.
-* **Duplicate or stale entries:** In normal operation, the module cleans up usage as content changes. If you suspect there are duplicate entries or a file still marked as in use after its link was removed, try a **Purge saved file links** and then run a manual scan. Purging will reset and remove any outdated records, and the fresh scan will rebuild the correct usage data. Be cautious with purging on production (it momentarily might allow files to be deleted until the scan completes).
+* **Duplicate or stale entries:** In normal operation, the module cleans up usage as content changes. If you suspect there are duplicate entries or a file still marked as in use after its link was removed, run the **Full scan now** action or the Drush command to refresh all usage data.
 * **Performance considerations:** Scanning a lot of HTML can be intensive. If you have thousands of content items with large text fields, consider using a longer cron interval or scanning specific sections of content during off-peak hours. You can also run the Drush command with Drupal’s `--batch` or `--memory-limit` options if needed. Monitor the logs for any PHP memory or execution time issues if you attempt to scan everything at once on a huge site.
 * **Integration with Media module:** Note that this module is complementary to using Media entities. It does not replace Media; rather, it covers scenarios where editors do **not** use Media and paste links directly. If you consistently use Media for files, you might not need this module. However, it can still serve as a safety net for any hard-coded usage. It won’t interfere with Media’s own usage tracking (it actually removes any redundant usage so that each file–content pair is only counted once).
-* **Uninstalling the module:** If you ever need to uninstall, first use **Purge** to remove all `filelink_usage` records (or run `drush filelink_usage:purge` if such a command exists). This will drop all usage entries added by the module and avoid leaving orphan data. After uninstall, your site will revert to only tracking file usage that’s natively known (e.g. via file/media fields).
 
 By following these troubleshooting steps and best practices, you can ensure that Filelink Usage continues to operate smoothly and that your file usage data remains accurate.
 
