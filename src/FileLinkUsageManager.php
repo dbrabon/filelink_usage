@@ -106,8 +106,16 @@ class FileLinkUsageManager {
     if ($term_ids)    { $entities['taxonomy_term'] = $term_ids; }
     if ($comment_ids) { $entities['comment']       = $comment_ids; }
 
+    $changed = [];
     if ($entities) {
-      $this->scanner->scan($entities);
+      $this->scanner->scanPopulateTable($entities);
+      $changed = array_merge($changed, $this->scanner->scanRecordUsage());
+      $changed = array_merge($changed, $this->scanner->scanRemoveFalsePositives());
+    }
+
+    if (!empty($changed)) {
+      $tags = array_map(fn(int $fid) => "file:$fid", array_unique($changed));
+      \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
     }
 
     $config->set('last_scan', $now)->save();

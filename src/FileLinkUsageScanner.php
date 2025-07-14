@@ -72,6 +72,87 @@ class FileLinkUsageScanner {
   }
 
   /**
+   * Populate the matches table for the provided entities without touching usage.
+   *
+   * @param array $entity_ids
+   *   An array of entity IDs keyed by entity type.
+   */
+  public function scanPopulateTable(array $entity_ids): void {
+    foreach ($entity_ids as $type => $ids) {
+      $storage = $this->entityTypeManager->getStorage($type);
+      foreach ($storage->loadMultiple($ids) as $entity) {
+        $dummy = NULL;
+        $this->scanEntity($entity, $dummy, FALSE);
+      }
+    }
+  }
+
+  /**
+   * Ensure file_usage has entries for each stored link.
+   *
+   * @return int[]
+   *   File IDs whose usage records were added.
+   */
+  public function scanRecordUsage(): array {
+    $changed = [];
+    if (!$this->database->schema()->tableExists('filelink_usage_matches')) {
+      return $changed;
+    }
+    $records = $this->database->select('filelink_usage_matches', 'f')
+      ->fields('f', ['entity_type', 'entity_id', 'link'])
+      ->execute();
+    foreach ($records as $row) {
+      $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $row->link]);
+      if (!$files) {
+        continue;
+      }
+      /** @var \Drupal\file\FileInterface $file */
+      $file = reset($files);
+      $usage = $this->fileUsage->listUsage($file);
+      if (empty($usage['filelink_usage'][$row->entity_type][$row->entity_id])) {
+        $this->fileUsage->add($file, 'filelink_usage', $row->entity_type, $row->entity_id);
+        $changed[] = $file->id();
+      }
+    }
+    return array_values(array_unique($changed));
+  }
+
+  /**
+   * Remove file_usage rows that no longer correspond to stored matches.
+   *
+   * @return int[]
+   *   File IDs whose usage records were removed.
+   */
+  public function scanRemoveFalsePositives(): array {
+    $changed = [];
+    $query = $this->database->select('file_usage', 'fu')
+      ->fields('fu', ['fid', 'type', 'id', 'count'])
+      ->condition('module', 'filelink_usage');
+    foreach ($query->execute() as $row) {
+      /** @var \Drupal\file\FileInterface|null $file */
+      $file = $this->entityTypeManager->getStorage('file')->load($row->fid);
+      if (!$file) {
+        continue;
+      }
+      $exists = $this->database->select('filelink_usage_matches', 'f')
+        ->fields('f', ['id'])
+        ->condition('entity_type', $row->type)
+        ->condition('entity_id', $row->id)
+        ->condition('link', $file->getFileUri())
+        ->execute()
+        ->fetchField();
+      if (!$exists) {
+        $count = (int) $row->count;
+        while ($count-- > 0) {
+          $this->fileUsage->delete($file, 'filelink_usage', $row->type, $row->id);
+        }
+        $changed[] = $row->fid;
+      }
+    }
+    return array_values(array_unique($changed));
+  }
+
+  /**
    * Scan a single content entity for file links.
    *
    * @param \Drupal\Core\Entity\EntityInterface $entity
@@ -79,7 +160,7 @@ class FileLinkUsageScanner {
    * @param array &$changedFileIds
    *   (optional) Reference to an array to collect IDs of files whose usage changes.
    */
-  public function scanEntity(EntityInterface $entity, array &$changedFileIds = NULL): void {
+  public function scanEntity(EntityInterface $entity, ?array &$changedFileIds = NULL, bool $updateUsage = TRUE): void {
     $entity_type = $entity->getEntityType()->id();
     // Only scan supported content entity types.
     if (!in_array($entity_type, ['node', 'block_content', 'taxonomy_term', 'comment'])) {
@@ -173,7 +254,7 @@ class FileLinkUsageScanner {
         foreach ($old_links as $old_link) {
           $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $old_link]);
           $file = $files ? reset($files) : NULL;
-          if ($file) {
+          if ($file && $updateUsage) {
             // Delete all usage records for this file–entity combination.
             $usage = $this->fileUsage->listUsage($file);
             if (!empty($usage['filelink_usage'][$type_key][$entity->id()])) {
@@ -201,7 +282,7 @@ class FileLinkUsageScanner {
         }
       }
       // If any usage was removed, invalidate cache for those files.
-      if (!empty($changed)) {
+      if (!empty($changed) && $updateUsage) {
         if ($changedFileIds !== NULL) {
           // Defer cache invalidation to parent scan() by collecting file IDs.
           foreach (array_unique($changed) as $fid) {
@@ -267,7 +348,7 @@ class FileLinkUsageScanner {
           ->execute();
       }
       // Only add a file usage entry if this file was not previously recorded.
-      if (!in_array($uri, $old_links)) {
+      if ($updateUsage && !in_array($uri, $old_links)) {
         /** @var \Drupal\file\FileInterface $file */
         $file = $this->entityTypeManager->getStorage('file')->load($fid);
         if ($file) {
@@ -283,7 +364,7 @@ class FileLinkUsageScanner {
         // This link was tracked before but is no longer in the content.
         $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $old_link]);
         $file = $files ? reset($files) : NULL;
-        if ($file) {
+        if ($file && $updateUsage) {
           $usage = $this->fileUsage->listUsage($file);
           if (!empty($usage['filelink_usage'][$target_type][$entity->id()])) {
             $count = $usage['filelink_usage'][$target_type][$entity->id()];
@@ -311,19 +392,21 @@ class FileLinkUsageScanner {
     }
 
     // 5. Ensure no duplicate usage entries remain if the same file appears multiple times.
-    foreach ($found_uris as $fid => $uri) {
-      /** @var \Drupal\file\FileInterface $file */
-      $file = $this->entityTypeManager->getStorage('file')->load($fid);
-      if ($file) {
-        $usage = $this->fileUsage->listUsage($file);
-        if (!empty($usage['filelink_usage'][$target_type][$entity->id()])) {
-          $count = $usage['filelink_usage'][$target_type][$entity->id()];
-          if ($count > 1) {
-            // More than one usage recorded for this file–entity (remove extras).
-            $changed[] = $fid;
-          }
-          while ($count-- > 1) {
-            $this->fileUsage->delete($file, 'filelink_usage', $target_type, $entity->id());
+    if ($updateUsage) {
+      foreach ($found_uris as $fid => $uri) {
+        /** @var \Drupal\file\FileInterface $file */
+        $file = $this->entityTypeManager->getStorage('file')->load($fid);
+        if ($file) {
+          $usage = $this->fileUsage->listUsage($file);
+          if (!empty($usage['filelink_usage'][$target_type][$entity->id()])) {
+            $count = $usage['filelink_usage'][$target_type][$entity->id()];
+            if ($count > 1) {
+              // More than one usage recorded for this file–entity (remove extras).
+              $changed[] = $fid;
+            }
+            while ($count-- > 1) {
+              $this->fileUsage->delete($file, 'filelink_usage', $target_type, $entity->id());
+            }
           }
         }
       }
@@ -370,7 +453,7 @@ class FileLinkUsageScanner {
     }
 
     // Invalidate caches for any files whose usage count changed (if not already deferred).
-    if (!empty($changed)) {
+    if ($updateUsage && !empty($changed)) {
       if ($changedFileIds !== NULL) {
         // Defer invalidation to batch flush in scan().
         foreach (array_unique($changed) as $fid) {
