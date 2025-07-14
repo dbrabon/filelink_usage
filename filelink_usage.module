@@ -171,7 +171,7 @@ function _filelink_usage_cleanup_deleted(string $type, int $id, EntityTypeManage
     ->reconcileEntityUsage($target_type, $id, TRUE);
 
   $tags = array_map(fn(int $fid) => "file:$fid", array_unique($file_ids));
-  $tags[] = 'entity_list:file';
+  $tags[] = 'file_list';
   \Drupal::service('cache_tags.invalidator')->invalidateTags($tags);
 }
 

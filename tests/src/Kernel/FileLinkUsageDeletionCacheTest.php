@@ -90,7 +90,7 @@ class FileLinkUsageDeletionCacheTest extends FileLinkUsageKernelTestBase {
     $node->delete();
 
     $this->assertContains('file:' . $file->id(), $this->invalidated);
-    $this->assertContains('entity_list:file', $this->invalidated);
+    $this->assertContains('file_list', $this->invalidated);
   }
 
 }
