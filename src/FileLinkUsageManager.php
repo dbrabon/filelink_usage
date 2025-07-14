@@ -114,7 +114,7 @@ class FileLinkUsageManager {
     }
 
     // Decide which entities to scan.
-    [$nids, $block_ids, $term_ids, $comment_ids] = $needs_full
+    [$nids, $block_ids, $term_ids, $comment_ids, $paragraph_ids] = $needs_full
       ? $this->collectAllEntityIds()
       : $this->collectStaleEntityIds($now - $interval);
 
@@ -123,6 +123,7 @@ class FileLinkUsageManager {
     if ($block_ids)   { $entities['block_content'] = $block_ids; }
     if ($term_ids)    { $entities['taxonomy_term'] = $term_ids; }
     if ($comment_ids) { $entities['comment']       = $comment_ids; }
+    if ($paragraph_ids) { $entities['paragraph'] = $paragraph_ids; }
 
     $changed = [];
     if ($entities) {
@@ -340,7 +341,13 @@ class FileLinkUsageManager {
       ->fields('t', ['tid'])->execute()->fetchCol();
     $cids = $this->database->select('comment_field_data', 'c')
       ->fields('c', ['cid'])->execute()->fetchCol();
-    return [$nids, $bids, $tids, $cids];
+    $pids = [];
+    if (\Drupal::service('entity_type.manager')->hasDefinition('paragraph') &&
+        $this->database->schema()->tableExists('paragraph')) {
+      $pids = $this->database->select('paragraph', 'p')
+        ->fields('p', ['id'])->execute()->fetchCol();
+    }
+    return [$nids, $bids, $tids, $cids, $pids];
   }
 
   private function collectStaleEntityIds(int $threshold): array {
@@ -351,6 +358,11 @@ class FileLinkUsageManager {
         'taxonomy_term' => ['taxonomy_term_field_data', 'tid'],
         'comment' => ['comment_field_data', 'cid'],
       ];
+
+      if (\Drupal::service('entity_type.manager')->hasDefinition('paragraph') &&
+          $this->database->schema()->tableExists('paragraph')) {
+        $map['paragraph'] = ['paragraph', 'id'];
+      }
 
       $results = [];
       foreach ($map as $type => [$table, $id_field]) {
@@ -374,6 +386,7 @@ class FileLinkUsageManager {
         $results['block_content'],
         $results['taxonomy_term'],
         $results['comment'],
+        $results['paragraph'] ?? [],
       ];
     }
     else {
@@ -384,7 +397,7 @@ class FileLinkUsageManager {
         ->isNull('s.scanned')
         ->condition('s.scanned', $threshold, '<');
       $nids = $query->condition($or)->execute()->fetchCol();
-      return [$nids, [], [], []];
+      return [$nids, [], [], [], []];
     }
   }
 

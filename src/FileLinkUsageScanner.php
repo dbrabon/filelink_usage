@@ -166,7 +166,7 @@ class FileLinkUsageScanner {
   public function scanEntity(EntityInterface $entity, ?array &$changedFileIds = NULL, bool $updateUsage = TRUE): void {
     $entity_type = $entity->getEntityType()->id();
     // Only scan supported content entity types.
-    if (!in_array($entity_type, ['node', 'block_content', 'taxonomy_term', 'comment'])) {
+    if (!in_array($entity_type, ['node', 'block_content', 'taxonomy_term', 'comment', 'paragraph'])) {
       return;
     }
 
@@ -305,6 +305,7 @@ class FileLinkUsageScanner {
       $entity_type === 'block_content' => 'block',
       $entity_type === 'taxonomy_term' => 'taxonomy_term',
       $entity_type === 'comment' => 'comment',
+      $entity_type === 'paragraph' => 'paragraph',
       default => 'node',
     };
 
