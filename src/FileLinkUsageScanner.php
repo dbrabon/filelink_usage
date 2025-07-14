@@ -108,8 +108,7 @@ class FileLinkUsageScanner {
       }
       /** @var \Drupal\file\FileInterface $file */
       $file = reset($files);
-      $usage = $this->fileUsage->listUsage($file);
-      if (empty($usage['filelink_usage'][$row->entity_type][$row->entity_id])) {
+      if (!$this->usageExists((int) $file->id(), $row->entity_type, (int) $row->entity_id)) {
         $this->fileUsage->add($file, 'filelink_usage', $row->entity_type, $row->entity_id);
         $changed[] = $file->id();
       }
@@ -351,7 +350,7 @@ class FileLinkUsageScanner {
       if ($updateUsage && !in_array($uri, $old_links)) {
         /** @var \Drupal\file\FileInterface $file */
         $file = $this->entityTypeManager->getStorage('file')->load($fid);
-        if ($file) {
+        if ($file && !$this->usageExists((int) $file->id(), $target_type, $entity->id())) {
           $this->fileUsage->add($file, 'filelink_usage', $target_type, $entity->id());
           $changed[] = $fid;
         }
@@ -483,6 +482,20 @@ class FileLinkUsageScanner {
         ->fields(['scanned' => $timestamp])
         ->execute();
     }
+  }
+
+  /**
+   * Determine if usage already exists for the given mapping.
+   */
+  private function usageExists(int $fid, string $type, int $id): bool {
+    return (bool) $this->database->select('file_usage', 'fu')
+      ->condition('fid', $fid)
+      ->condition('module', 'filelink_usage')
+      ->condition('type', $type)
+      ->condition('id', $id)
+      ->countQuery()
+      ->execute()
+      ->fetchField();
   }
 
 }

@@ -170,6 +170,53 @@ class FileLinkUsageNodeHooksTest extends FileLinkUsageKernelTestBase {
   }
 
   /**
+   * Saving an entity multiple times does not increment usage counts.
+   */
+  public function testMultipleSavesDoNotDuplicateUsage(): void {
+    $uri = 'public://duplicate_save.txt';
+    file_put_contents($this->container->get('file_system')->realpath($uri), 'txt');
+    $file = File::create([
+      'uri' => $uri,
+      'filename' => 'duplicate_save.txt',
+    ]);
+    $file->save();
+
+    $body = '<a href="/sites/default/files/duplicate_save.txt">Download</a>';
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Duplicate save',
+      'body' => [
+        'value' => $body,
+        'format' => 'basic_html',
+      ],
+    ]);
+    $node->save();
+
+    $database = $this->container->get('database');
+    $count = $database->select('file_usage', 'fu')
+      ->condition('fid', $file->id())
+      ->condition('module', 'filelink_usage')
+      ->condition('type', 'node')
+      ->condition('id', $node->id())
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+    $this->assertEquals(1, (int) $count);
+
+    // Saving again should not create additional usage rows.
+    $node->save();
+    $count_after = $database->select('file_usage', 'fu')
+      ->condition('fid', $file->id())
+      ->condition('module', 'filelink_usage')
+      ->condition('type', 'node')
+      ->condition('id', $node->id())
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+    $this->assertEquals(1, (int) $count_after);
+  }
+
+  /**
    * Ensures node delete removes usage entries via entity_delete().
    */
   public function testDeleteHookRemovesUsage(): void {
