@@ -334,14 +334,30 @@ class FileLinkUsageManager {
    * ---------------------------------------------------------------------- */
 
   private function collectAllEntityIds(): array {
-    $nids = $this->database->select('node_field_data', 'n')
-      ->fields('n', ['nid'])->execute()->fetchCol();
-    $bids = $this->database->select('block_content_field_data', 'b')
-      ->fields('b', ['id'])->execute()->fetchCol();
-    $tids = $this->database->select('taxonomy_term_field_data', 't')
-      ->fields('t', ['tid'])->execute()->fetchCol();
-    $cids = $this->database->select('comment_field_data', 'c')
-      ->fields('c', ['cid'])->execute()->fetchCol();
+    $nids = [];
+    if ($this->database->schema()->tableExists('node_field_data')) {
+      $nids = $this->database->select('node_field_data', 'n')
+        ->fields('n', ['nid'])->execute()->fetchCol();
+    }
+
+    $bids = [];
+    if ($this->database->schema()->tableExists('block_content_field_data')) {
+      $bids = $this->database->select('block_content_field_data', 'b')
+        ->fields('b', ['id'])->execute()->fetchCol();
+    }
+
+    $tids = [];
+    if ($this->database->schema()->tableExists('taxonomy_term_field_data')) {
+      $tids = $this->database->select('taxonomy_term_field_data', 't')
+        ->fields('t', ['tid'])->execute()->fetchCol();
+    }
+
+    $cids = [];
+    if ($this->database->schema()->tableExists('comment_field_data')) {
+      $cids = $this->database->select('comment_field_data', 'c')
+        ->fields('c', ['cid'])->execute()->fetchCol();
+    }
+
     $pids = [];
     if (\Drupal::service('entity_type.manager')->hasDefinition('paragraph') &&
         $this->database->schema()->tableExists('paragraph')) {
