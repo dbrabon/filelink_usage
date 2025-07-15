@@ -202,7 +202,8 @@ class FileLinkUsageManager {
    * @param int $entity_id
    *   The entity ID.
    * @param array $uris
-   *   List of file URIs to register.
+   *   List of file URIs to register. URIs without a matching File entity are
+   *   ignored and no tracking row is created.
    */
   public function manageUsage(string $entity_type, int $entity_id, ?array $uris): void {
     if ($uris === NULL) {
@@ -236,26 +237,26 @@ class FileLinkUsageManager {
           $this->fileUsage->add($file, 'filelink_usage', $target_type, $entity_id);
           $file_ids[] = $file->id();
         }
-      }
 
-      if ($table === 'filelink_usage_matches') {
-        $this->database->merge($table)
-          ->keys([
-            'entity_type' => $target_type,
-            'entity_id' => $entity_id,
-            'link' => $uri,
-          ])
-          ->fields(['timestamp' => $start])
-          ->execute();
-      }
-      elseif ($entity_type === 'node') {
-        $this->database->merge($table)
-          ->keys([
-            'nid' => $entity_id,
-            'link' => $uri,
-          ])
-          ->fields(['timestamp' => $start])
-          ->execute();
+        if ($table === 'filelink_usage_matches') {
+          $this->database->merge($table)
+            ->keys([
+              'entity_type' => $target_type,
+              'entity_id' => $entity_id,
+              'link' => $uri,
+            ])
+            ->fields(['timestamp' => $start])
+            ->execute();
+        }
+        elseif ($entity_type === 'node') {
+          $this->database->merge($table)
+            ->keys([
+              'nid' => $entity_id,
+              'link' => $uri,
+            ])
+            ->fields(['timestamp' => $start])
+            ->execute();
+        }
       }
     }
 
