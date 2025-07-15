@@ -250,7 +250,7 @@ function filelink_usage_update_8007() {
       'length' => 1024,
       'not null' => FALSE,
     ]);
-    $schema->addIndex('filelink_usage_matches', 'managed_file_uri', ['managed_file_uri']);
+    $schema->addIndex('filelink_usage_matches', 'managed_file_uri', ['managed_file_uri'], []);
 
     /** @var \Drupal\filelink_usage\FileLinkUsageManager $manager */
     $manager = \Drupal::service('filelink_usage.manager');
