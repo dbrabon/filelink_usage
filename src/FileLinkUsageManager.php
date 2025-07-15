@@ -221,6 +221,10 @@ class FileLinkUsageManager {
     }
     $normalized_uris = array_values(array_unique($normalized_uris));
 
+    if ($normalized_uris === []) {
+      return;
+    }
+
     $file_ids = [];
     foreach ($normalized_uris as $uri) {
       $files = $this->entityTypeManager->getStorage('file')
