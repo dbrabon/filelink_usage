@@ -74,8 +74,11 @@ class FileLinkUsageManager {
     if ($this->database->schema()->tableExists('filelink_usage_matches')) {
       $normalized = $this->normalizer->normalize($file->getFileUri());
       $query = $this->database->select('filelink_usage_matches', 'f')
-        ->fields('f', ['entity_type', 'entity_id'])
+        ->fields('f', ['entity_type', 'entity_id']);
+      $or = $query->orConditionGroup()
+        ->condition('managed_file_uri', $file->getFileUri())
         ->condition('link', $normalized);
+      $query->condition($or);
 
       foreach ($query->execute() as $row) {
         $type = $row->entity_type;
@@ -243,7 +246,10 @@ class FileLinkUsageManager {
               'entity_id' => $entity_id,
               'link' => $uri,
             ])
-            ->fields(['timestamp' => $start])
+            ->fields([
+              'timestamp' => $start,
+              'managed_file_uri' => $file->getFileUri(),
+            ])
             ->execute();
         }
         elseif ($entity_type === 'node') {
@@ -261,7 +267,7 @@ class FileLinkUsageManager {
     $stale_query = NULL;
     if ($table === 'filelink_usage_matches') {
       $stale_query = $this->database->select($table, 'f')
-        ->fields('f', ['id', 'link'])
+        ->fields('f', ['id', 'link', 'managed_file_uri'])
         ->condition('entity_type', $target_type)
         ->condition('entity_id', $entity_id)
         ->condition('timestamp', $start, '<');
@@ -276,11 +282,21 @@ class FileLinkUsageManager {
     if ($stale_query) {
       foreach ($stale_query->execute() as $row) {
         $uri = $row->link;
+        $managed = $row->managed_file_uri;
         $this->database->delete($table)
           ->condition('id', $row->id)
           ->execute();
 
-        $file = $this->loadFileByNormalizedUri($uri);
+        $file = NULL;
+        if ($managed) {
+          $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $managed]);
+          if ($files) {
+            $file = reset($files);
+          }
+        }
+        if (!$file) {
+          $file = $this->loadFileByNormalizedUri($uri);
+        }
         if ($file) {
           $usage = $this->fileUsage->listUsage($file);
           if (!empty($usage['filelink_usage'][$target_type][$entity_id])) {
@@ -420,11 +436,14 @@ class FileLinkUsageManager {
     $links   = [];
 
     if ($table === 'filelink_usage_matches') {
-      $links = $this->database->select($table, 'f')
-        ->fields('f', ['link'])
+      $result = $this->database->select($table, 'f')
+        ->fields('f', ['link', 'managed_file_uri'])
         ->condition('entity_type', $etype)
         ->condition('entity_id', $eid)
-        ->execute()->fetchCol();
+        ->execute();
+      foreach ($result as $rec) {
+        $links[] = [$rec->link, $rec->managed_file_uri];
+      }
     }
     elseif ($etype === 'node') {
       $links = $this->database->select($table, 'f')
@@ -434,8 +453,18 @@ class FileLinkUsageManager {
     }
 
     $file_ids = [];
-    foreach ($links as $uri) {
-      $file = $this->loadFileByNormalizedUri($uri);
+    foreach ($links as $entry) {
+      [$uri, $managed] = is_array($entry) ? $entry : [$entry, NULL];
+      $file = NULL;
+      if ($managed) {
+        $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $managed]);
+        if ($files) {
+          $file = reset($files);
+        }
+      }
+      if (!$file) {
+        $file = $this->loadFileByNormalizedUri($uri);
+      }
       if ($file) {
         $usage = $this->fileUsage->listUsage($file);
         if (!empty($usage['filelink_usage'][$etype][$eid])) {
