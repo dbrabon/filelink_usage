@@ -45,6 +45,16 @@ class FileLinkUsageNormalizer {
       return 'private://' . ltrim($path, '/');
     }
 
+    if (str_starts_with($uri, 'public://')) {
+      $path = rawurldecode(substr($uri, strlen('public://')));
+      return 'public://' . ltrim($path, '/');
+    }
+
+    if (str_starts_with($uri, 'private://')) {
+      $path = rawurldecode(substr($uri, strlen('private://')));
+      return 'private://' . ltrim($path, '/');
+    }
+
     return $uri;
   }
 
