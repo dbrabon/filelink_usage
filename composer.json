@@ -3,6 +3,7 @@
   "description": "Detect and track hard-coded file links in Drupal text fields to ensure accurate file usage.",
   "type": "drupal-module",
   "license": "GPL-2.0-or-later",
+  "version": "v1.1.1",
   "authors": [
     {
       "name": "Daniel Boone Brabon",
