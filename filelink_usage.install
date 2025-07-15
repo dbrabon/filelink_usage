@@ -43,7 +43,8 @@ function filelink_usage_schema() {
       'entity_type' => ['entity_type'],
       'entity_id' => ['entity_id'],
       'link' => ['link'],
-      'managed_file_uri' => ['managed_file_uri'],
+      // Limit index length for compatibility with InnoDB on MySQL.
+      'managed_file_uri' => ['managed_file_uri(191)'],
     ],
     'unique keys' => [
       'entity_link' => ['entity_type', 'entity_id', 'link'],
@@ -250,7 +251,8 @@ function filelink_usage_update_8007() {
       'length' => 1024,
       'not null' => FALSE,
     ]);
-    $schema->addIndex('filelink_usage_matches', 'managed_file_uri', ['managed_file_uri'], []);
+    // Specify index length explicitly for MySQL compatibility.
+    $schema->addIndex('filelink_usage_matches', 'managed_file_uri', ['managed_file_uri(191)']);
 
     /** @var \Drupal\filelink_usage\FileLinkUsageManager $manager */
     $manager = \Drupal::service('filelink_usage.manager');
