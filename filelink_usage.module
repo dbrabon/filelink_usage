@@ -184,7 +184,8 @@ function _filelink_usage_cleanup_deleted(string $type, int $id, EntityTypeManage
 
   $file_ids = [];
   foreach ($links as $uri) {
-    $files = $etm->getStorage('file')->loadByProperties(['uri' => $uri]);
+    $normalized = \Drupal::service('filelink_usage.normalizer')->normalize($uri);
+    $files = $etm->getStorage('file')->loadByProperties(['uri' => $normalized]);
     if (!$files) {
       continue;
     }

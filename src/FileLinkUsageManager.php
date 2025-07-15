@@ -72,9 +72,10 @@ class FileLinkUsageManager {
     // each referencing entity. Older schema versions may not have the matches
     // table, so guard against that scenario.
     if ($this->database->schema()->tableExists('filelink_usage_matches')) {
+      $normalized = $this->normalizer->normalize($file->getFileUri());
       $query = $this->database->select('filelink_usage_matches', 'f')
         ->fields('f', ['entity_type', 'entity_id'])
-        ->condition('link', $file->getFileUri());
+        ->condition('link', $normalized);
 
       foreach ($query->execute() as $row) {
         $type = $row->entity_type;

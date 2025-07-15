@@ -152,11 +152,12 @@ class FileLinkUsageScanner {
       if (!$file) {
         continue;
       }
+      $normalized = $this->normalizer->normalize($file->getFileUri());
       $exists = $this->database->select('filelink_usage_matches', 'f')
         ->fields('f', ['id'])
         ->condition('entity_type', $row->type)
         ->condition('entity_id', $row->id)
-        ->condition('link', $file->getFileUri())
+        ->condition('link', $normalized)
         ->execute()
         ->fetchField();
       if (!$exists) {
