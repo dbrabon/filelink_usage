@@ -269,3 +269,16 @@ function filelink_usage_update_8007() {
     }
   }
 }
+
+/**
+ * Ensure correct index length for managed_file_uri.
+ */
+function filelink_usage_update_8008() {
+  $schema = \Drupal::database()->schema();
+  if ($schema->tableExists('filelink_usage_matches')) {
+    if ($schema->indexExists('filelink_usage_matches', 'managed_file_uri')) {
+      $schema->dropIndex('filelink_usage_matches', 'managed_file_uri');
+    }
+    $schema->addIndex('filelink_usage_matches', 'managed_file_uri', ['managed_file_uri(191)']);
+  }
+}

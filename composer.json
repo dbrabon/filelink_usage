@@ -3,7 +3,7 @@
   "description": "Detect and track hard-coded file links in Drupal text fields to ensure accurate file usage.",
   "type": "drupal-module",
   "license": "GPL-2.0-or-later",
-  "version": "v1.1.3",
+  "version": "v1.1.4",
   "authors": [
     {
       "name": "Daniel Boone Brabon",
@@ -24,7 +24,8 @@
     "allow-plugins": {
       "phpstan/extension-installer": true,
       "php-http/discovery": true,
-      "dealerdirect/phpcodesniffer-composer-installer": true
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "tbachert/spi": true
     }
   }
 }
