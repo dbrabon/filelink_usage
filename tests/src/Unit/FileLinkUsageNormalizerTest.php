@@ -15,5 +15,17 @@ class FileLinkUsageNormalizerTest extends TestCase {
         $url = 'https://dev.example.com/sites/default/files/foo/bar.pdf?x=1#sec';
         $this->assertEquals('public://foo/bar.pdf', $normalizer->normalize($url));
     }
+
+    public function testEncodedFilenameDecoding(): void {
+        $normalizer = new FileLinkUsageNormalizer();
+        $url = 'https://example.com/sites/default/files/My%20File.pdf';
+        $this->assertEquals('public://My File.pdf', $normalizer->normalize($url));
+    }
+
+    public function testPublicUriPreserved(): void {
+        $normalizer = new FileLinkUsageNormalizer();
+        $url = 'public://existing/file.pdf';
+        $this->assertEquals('public://existing/file.pdf', $normalizer->normalize($url));
+    }
 }
 
