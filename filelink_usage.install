@@ -28,6 +28,11 @@ function filelink_usage_schema() {
         'length' => 1024,
         'not null' => TRUE,
       ],
+      'managed_file_uri' => [
+        'type' => 'varchar',
+        'length' => 1024,
+        'not null' => FALSE,
+      ],
       'timestamp' => [
         'type' => 'int',
         'not null' => TRUE,
@@ -38,6 +43,7 @@ function filelink_usage_schema() {
       'entity_type' => ['entity_type'],
       'entity_id' => ['entity_id'],
       'link' => ['link'],
+      'managed_file_uri' => ['managed_file_uri'],
     ],
     'unique keys' => [
       'entity_link' => ['entity_type', 'entity_id', 'link'],
@@ -228,5 +234,36 @@ function filelink_usage_update_8006() {
   if ($config->get('scan_batch_size') === NULL) {
     $config->set('scan_batch_size', 50);
     $config->save();
+  }
+}
+
+/**
+ * Add managed_file_uri column to matches table and populate it.
+ */
+function filelink_usage_update_8007() {
+  $database = \Drupal::database();
+  $schema = $database->schema();
+
+  if ($schema->tableExists('filelink_usage_matches') && !$schema->fieldExists('filelink_usage_matches', 'managed_file_uri')) {
+    $schema->addField('filelink_usage_matches', 'managed_file_uri', [
+      'type' => 'varchar',
+      'length' => 1024,
+      'not null' => FALSE,
+    ]);
+    $schema->addIndex('filelink_usage_matches', 'managed_file_uri', ['managed_file_uri']);
+
+    /** @var \Drupal\filelink_usage\FileLinkUsageManager $manager */
+    $manager = \Drupal::service('filelink_usage.manager');
+    $query = $database->select('filelink_usage_matches', 'f')
+      ->fields('f', ['id', 'link']);
+    foreach ($query->execute() as $row) {
+      $file = $manager->loadFileByNormalizedUri($row->link);
+      if ($file) {
+        $database->update('filelink_usage_matches')
+          ->fields(['managed_file_uri' => $file->getFileUri()])
+          ->condition('id', $row->id)
+          ->execute();
+      }
+    }
   }
 }

@@ -176,16 +176,25 @@ function _filelink_usage_cleanup_deleted(string $type, int $id, EntityTypeManage
 
   // Collect affected file IDs before the manager purges usage.
   $links = $database->select('filelink_usage_matches', 'f')
-    ->fields('f', ['link'])
+    ->fields('f', ['link', 'managed_file_uri'])
     ->condition('entity_type', $target_type)
     ->condition('entity_id', $id)
     ->execute()
-    ->fetchCol();
+    ->fetchAll();
 
   $file_ids = [];
   $manager = \Drupal::service('filelink_usage.manager');
-  foreach ($links as $uri) {
-    $file = $manager->loadFileByNormalizedUri($uri);
+  foreach ($links as $row) {
+    $file = NULL;
+    if (!empty($row->managed_file_uri)) {
+      $files = \Drupal::entityTypeManager()->getStorage('file')->loadByProperties(['uri' => $row->managed_file_uri]);
+      if ($files) {
+        $file = reset($files);
+      }
+    }
+    if (!$file) {
+      $file = $manager->loadFileByNormalizedUri($row->link);
+    }
     if ($file) {
       $file_ids[] = $file->id();
     }

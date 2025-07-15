@@ -105,6 +105,20 @@ class FileLinkUsageScanner {
   }
 
   /**
+   * Load a managed file from a stored match record.
+   */
+  private function loadFileFromMatch(string $link, ?string $managed_uri): ?FileInterface {
+    if ($managed_uri) {
+      $files = $this->entityTypeManager->getStorage('file')
+        ->loadByProperties(['uri' => $managed_uri]);
+      if ($files) {
+        return reset($files);
+      }
+    }
+    return $this->loadFileByNormalizedUri($link);
+  }
+
+  /**
    * Populate the matches table for the provided entities without touching usage.
    *
    * @param array $entity_ids
@@ -138,10 +152,10 @@ class FileLinkUsageScanner {
       return $changed;
     }
     $records = $this->database->select('filelink_usage_matches', 'f')
-      ->fields('f', ['entity_type', 'entity_id', 'link'])
+      ->fields('f', ['entity_type', 'entity_id', 'link', 'managed_file_uri'])
       ->execute();
     foreach ($records as $row) {
-      $file = $this->loadFileByNormalizedUri($row->link);
+      $file = $this->loadFileFromMatch($row->link, $row->managed_file_uri);
       if (!$file) {
         continue;
       }
@@ -171,13 +185,14 @@ class FileLinkUsageScanner {
         continue;
       }
       $normalized = $this->normalizer->normalize($file->getFileUri());
-      $exists = $this->database->select('filelink_usage_matches', 'f')
+      $select = $this->database->select('filelink_usage_matches', 'f')
         ->fields('f', ['id'])
         ->condition('entity_type', $row->type)
-        ->condition('entity_id', $row->id)
-        ->condition('link', $normalized)
-        ->execute()
-        ->fetchField();
+        ->condition('entity_id', $row->id);
+      $or = $select->orConditionGroup()
+        ->condition('managed_file_uri', $file->getFileUri())
+        ->condition('link', $normalized);
+      $exists = $select->condition($or)->execute()->fetchField();
       if (!$exists) {
         $count = (int) $row->count;
         while ($count-- > 0) {
@@ -207,13 +222,17 @@ class FileLinkUsageScanner {
     // Determine the key used for this entity type in usage records.
     $type_key = ($entity_type === 'block_content') ? 'block' : $entity_type;
     $old_links = [];
+    $old_map = [];
     if ($this->database->schema()->tableExists('filelink_usage_matches')) {
-      $old_links = $this->database->select('filelink_usage_matches', 'f')
-        ->fields('f', ['link'])
+      $result = $this->database->select('filelink_usage_matches', 'f')
+        ->fields('f', ['link', 'managed_file_uri'])
         ->condition('entity_type', $type_key)
         ->condition('entity_id', $entity->id())
-        ->execute()
-        ->fetchCol();
+        ->execute();
+      foreach ($result as $rec) {
+        $old_links[] = $rec->link;
+        $old_map[$rec->link] = $rec->managed_file_uri;
+      }
     }
     else {
       // Legacy table (Drupal 9.x upgrade scenario) without entity_type column.
@@ -237,6 +256,7 @@ class FileLinkUsageScanner {
     // Track found file URIs and avoid counting duplicates within this entity.
     $found_uris = [];
     $fid_counts = [];
+    $found_files = [];
     foreach ($file_urls as $url) {
       $file_uri = $this->normalizer->normalize($url);
       if (!str_starts_with($file_uri, 'public://') && !str_starts_with($file_uri, 'private://')) {
@@ -247,6 +267,7 @@ class FileLinkUsageScanner {
       $file_entity = $this->loadFileByNormalizedUri($file_uri);
       if ($file_entity) {
         $fid = $file_entity->id();
+        $found_files[$fid] = $file_entity;
       }
       if (!$fid) {
         // Skip untracked file links (no File entity exists yet).
@@ -268,7 +289,7 @@ class FileLinkUsageScanner {
       if (!empty($old_links)) {
         // Previously had file links, now none – remove all usage entries.
         foreach ($old_links as $old_link) {
-          $file = $this->loadFileByNormalizedUri($old_link);
+          $file = $this->loadFileFromMatch($old_link, $old_map[$old_link] ?? NULL);
           if ($file && $updateUsage) {
             // Delete all usage records for this file–entity combination.
             $usage = $this->fileUsage->listUsage($file);
@@ -344,13 +365,17 @@ class FileLinkUsageScanner {
     foreach ($found_uris as $fid => $uri) {
       // Upsert a tracking record of this file link in our database.
       if ($table === 'filelink_usage_matches') {
+        $managed = $found_files[$fid]->getFileUri();
         $this->database->merge('filelink_usage_matches')
           ->keys([
             'entity_type' => $target_type,
             'entity_id'   => $entity->id(),
             'link'        => $uri,
           ])
-          ->fields(['timestamp' => $this->time->getCurrentTime()])
+          ->fields([
+            'timestamp' => $this->time->getCurrentTime(),
+            'managed_file_uri' => $managed,
+          ])
           ->execute();
       }
       else {
@@ -378,7 +403,7 @@ class FileLinkUsageScanner {
     foreach ($old_links as $old_link) {
       if (!in_array($old_link, $found_uris)) {
         // This link was tracked before but is no longer in the content.
-        $file = $this->loadFileByNormalizedUri($old_link);
+        $file = $this->loadFileFromMatch($old_link, $old_map[$old_link] ?? NULL);
         if ($file && $updateUsage) {
           $usage = $this->fileUsage->listUsage($file);
           if (!empty($usage['filelink_usage'][$target_type][$entity->id()])) {
