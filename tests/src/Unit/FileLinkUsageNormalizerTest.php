@@ -27,5 +27,11 @@ class FileLinkUsageNormalizerTest extends TestCase {
         $url = 'public://existing/file.pdf';
         $this->assertEquals('public://existing/file.pdf', $normalizer->normalize($url));
     }
+
+    public function testEncodedStreamWrapperPath(): void {
+        $normalizer = new FileLinkUsageNormalizer();
+        $url = 'public://Some%20File.pdf';
+        $this->assertEquals('public://Some File.pdf', $normalizer->normalize($url));
+    }
 }
 
