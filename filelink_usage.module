@@ -41,9 +41,13 @@ function filelink_usage_entity_insert(EntityInterface $entity): void {
       break;
 
     default:
-      // Newly created content may contain hard‑coded links – rescan next cron.
       $entity_type = $entity->getEntityType();
       if ($entity_type instanceof ContentEntityTypeInterface) {
+        // Immediately register any detected file links just like presave hooks
+        // do for existing entities so file usage counts update right away.
+        _filelink_usage_manage_presave($entity);
+        // Also mark for a future rescan in case new files matching the links
+        // are uploaded later.
         $manager->markEntityForScan($entity->getEntityTypeId(), $entity->id());
       }
   }
