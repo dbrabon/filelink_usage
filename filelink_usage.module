@@ -129,7 +129,7 @@ function _filelink_usage_extract_uris(EntityInterface $entity): array {
  * Manage file usage for a presave entity.
  */
 function _filelink_usage_manage_presave(EntityInterface $entity): void {
-  $id = $entity->id();
+  $id = (int) $entity->id();
   if (!$id) {
     return;
   }
