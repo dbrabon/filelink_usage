@@ -4,8 +4,11 @@
     <ini name="error_reporting" value="-1"/>
   </php>
   <testsuites>
-    <testsuite name="filelink_usage">
+    <testsuite name="filelink_usage_unit">
       <directory>./tests/src/Unit</directory>
+    </testsuite>
+    <testsuite name="filelink_usage_kernel">
+      <directory>./tests/src/Kernel</directory>
     </testsuite>
   </testsuites>
 </phpunit>

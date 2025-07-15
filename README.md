@@ -81,11 +81,19 @@ Once installed and configured, Filelink Usage works mostly behind the scenes to 
 
 ## Testing
 
-Kernel and unit tests are located under `tests/src`. Install the development dependencies first and run PHPUnit using the included configuration file.
+Kernel and unit tests are located under `tests/src`. Install the development
+dependencies first and run PHPUnit with the provided configuration file.
 
 ```bash
 composer install --dev
-vendor/bin/phpunit
+vendor/bin/phpunit -c phpunit.xml.dist
+```
+
+To run a specific suite use the `--testsuite` option:
+
+```bash
+vendor/bin/phpunit --testsuite filelink_usage_unit -c phpunit.xml.dist
+vendor/bin/phpunit --testsuite filelink_usage_kernel -c phpunit.xml.dist
 ```
 
 These tests verify the scanner hooks and overall module behaviour.
