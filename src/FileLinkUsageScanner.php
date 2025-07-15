@@ -56,11 +56,17 @@ class FileLinkUsageScanner {
   public function scan(array $entity_ids): void {
     // Collect file IDs whose usage changes to invalidate cache tags once at end.
     $changedFileIds = [];
+    $batch = (int) ($this->configFactory->get('filelink_usage.settings')->get('scan_batch_size') ?? 50);
+    if ($batch <= 0) {
+      $batch = 50;
+    }
     foreach ($entity_ids as $entity_type => $ids) {
       /** @var \Drupal\Core\Entity\ContentEntityStorageInterface $storage */
       $storage = $this->entityTypeManager->getStorage($entity_type);
-      foreach ($storage->loadMultiple($ids) as $entity) {
-        $this->scanEntity($entity, $changedFileIds);
+      foreach (array_chunk($ids, $batch) as $chunk) {
+        foreach ($storage->loadMultiple($chunk) as $entity) {
+          $this->scanEntity($entity, $changedFileIds);
+        }
       }
     }
     // Invalidate file cache tags for all changed files in one operation.
@@ -85,11 +91,17 @@ class FileLinkUsageScanner {
    *   An array of entity IDs keyed by entity type.
    */
   public function scanPopulateTable(array $entity_ids): void {
+    $batch = (int) ($this->configFactory->get('filelink_usage.settings')->get('scan_batch_size') ?? 50);
+    if ($batch <= 0) {
+      $batch = 50;
+    }
     foreach ($entity_ids as $type => $ids) {
       $storage = $this->entityTypeManager->getStorage($type);
-      foreach ($storage->loadMultiple($ids) as $entity) {
-        $dummy = NULL;
-        $this->scanEntity($entity, $dummy, FALSE);
+      foreach (array_chunk($ids, $batch) as $chunk) {
+        foreach ($storage->loadMultiple($chunk) as $entity) {
+          $dummy = NULL;
+          $this->scanEntity($entity, $dummy, FALSE);
+        }
       }
     }
   }
