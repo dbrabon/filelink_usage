@@ -204,7 +204,10 @@ class FileLinkUsageManager {
    * @param array $uris
    *   List of file URIs to register.
    */
-  public function manageUsage(string $entity_type, int $entity_id, array $uris): void {
+  public function manageUsage(string $entity_type, int $entity_id, ?array $uris): void {
+    if ($uris === NULL) {
+      return;
+    }
     $table = $this->matchesHasEntityColumns
       ? 'filelink_usage_matches' : 'filelink_usage';
 

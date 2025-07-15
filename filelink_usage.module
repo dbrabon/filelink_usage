@@ -100,7 +100,7 @@ function filelink_usage_mark_for_rescan(NodeInterface $node): void {
 /**
  * Extract file URIs from all text fields of an entity.
  */
-function _filelink_usage_extract_uris(EntityInterface $entity): array {
+function _filelink_usage_extract_uris(EntityInterface $entity): ?array {
   $uris = [];
   $normalizer = \Drupal::service('filelink_usage.normalizer');
   foreach ($entity->getFieldDefinitions() as $field_name => $definition) {
@@ -116,9 +116,27 @@ function _filelink_usage_extract_uris(EntityInterface $entity): array {
       if ($text === '') {
         continue;
       }
-      preg_match_all('/(?:src|href)=(["\'])([^"\']*\\/(?:sites\\/default\\/files|system\\/files)\\/[^"\']+)\1/i', $text, $matches);
-      foreach ($matches[2] ?? [] as $url) {
-        $uris[] = $normalizer->normalize($url);
+      $dom = new \DOMDocument();
+      libxml_use_internal_errors(TRUE);
+      $loaded = $dom->loadHTML('<meta http-equiv="Content-Type" content="text/html; charset=utf-8">' . $text, LIBXML_NOWARNING | LIBXML_NOERROR);
+      $errors = libxml_get_errors();
+      libxml_clear_errors();
+      libxml_use_internal_errors(FALSE);
+      if (!$loaded || !empty($errors)) {
+        \Drupal::logger('filelink_usage')->error('Failed parsing HTML in %type %id field %field.', [
+          '%type' => $entity->getEntityTypeId(),
+          '%id' => $entity->id(),
+          '%field' => $field_name,
+        ]);
+        return NULL;
+      }
+      $xpath = new \DOMXPath($dom);
+      foreach ($xpath->query('//*[@href]|//*[@src]') as $node) {
+        $attr = $node->hasAttribute('href') ? 'href' : 'src';
+        $url = $node->getAttribute($attr);
+        if (preg_match('#/(?:sites/default/files|system/files)/#i', $url)) {
+          $uris[] = $normalizer->normalize($url);
+        }
       }
     }
   }
@@ -134,7 +152,11 @@ function _filelink_usage_manage_presave(EntityInterface $entity): void {
     return;
   }
   $uris = _filelink_usage_extract_uris($entity);
-  \Drupal::service('filelink_usage.manager')->manageUsage($entity->getEntityTypeId(), $id, $uris);
+  if ($uris === NULL) {
+    return;
+  }
+  \Drupal::service('filelink_usage.manager')
+    ->manageUsage($entity->getEntityTypeId(), $id, $uris);
 }
 
 /**
