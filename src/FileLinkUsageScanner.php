@@ -85,6 +85,26 @@ class FileLinkUsageScanner {
   }
 
   /**
+   * Load a managed file by its normalized URI.
+   */
+  private function loadFileByNormalizedUri(string $uri): ?FileInterface {
+    $files = $this->entityTypeManager->getStorage('file')
+      ->loadByProperties(['uri' => $uri]);
+    if ($files) {
+      return reset($files);
+    }
+    $filename = basename($uri);
+    $candidates = $this->entityTypeManager->getStorage('file')
+      ->loadByProperties(['filename' => $filename]);
+    foreach ($candidates as $candidate) {
+      if ($this->normalizer->normalize($candidate->getFileUri()) === $uri) {
+        return $candidate;
+      }
+    }
+    return NULL;
+  }
+
+  /**
    * Populate the matches table for the provided entities without touching usage.
    *
    * @param array $entity_ids
@@ -121,12 +141,10 @@ class FileLinkUsageScanner {
       ->fields('f', ['entity_type', 'entity_id', 'link'])
       ->execute();
     foreach ($records as $row) {
-      $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $row->link]);
-      if (!$files) {
+      $file = $this->loadFileByNormalizedUri($row->link);
+      if (!$file) {
         continue;
       }
-      /** @var \Drupal\file\FileInterface $file */
-      $file = reset($files);
       if (!$this->usageExists((int) $file->id(), $row->entity_type, (int) $row->entity_id)) {
         $this->fileUsage->add($file, 'filelink_usage', $row->entity_type, $row->entity_id);
         $changed[] = $file->id();
@@ -152,11 +170,12 @@ class FileLinkUsageScanner {
       if (!$file) {
         continue;
       }
+      $normalized = $this->normalizer->normalize($file->getFileUri());
       $exists = $this->database->select('filelink_usage_matches', 'f')
         ->fields('f', ['id'])
         ->condition('entity_type', $row->type)
         ->condition('entity_id', $row->id)
-        ->condition('link', $file->getFileUri())
+        ->condition('link', $normalized)
         ->execute()
         ->fetchField();
       if (!$exists) {
@@ -225,10 +244,8 @@ class FileLinkUsageScanner {
       }
       // Check if there is a managed File entity for this URI.
       $fid = NULL;
-      $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $file_uri]);
-      if ($files) {
-        /** @var \Drupal\file\FileInterface $file_entity */
-        $file_entity = reset($files);
+      $file_entity = $this->loadFileByNormalizedUri($file_uri);
+      if ($file_entity) {
         $fid = $file_entity->id();
       }
       if (!$fid) {
@@ -251,8 +268,7 @@ class FileLinkUsageScanner {
       if (!empty($old_links)) {
         // Previously had file links, now none – remove all usage entries.
         foreach ($old_links as $old_link) {
-          $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $old_link]);
-          $file = $files ? reset($files) : NULL;
+          $file = $this->loadFileByNormalizedUri($old_link);
           if ($file && $updateUsage) {
             // Delete all usage records for this file–entity combination.
             $usage = $this->fileUsage->listUsage($file);
@@ -362,8 +378,7 @@ class FileLinkUsageScanner {
     foreach ($old_links as $old_link) {
       if (!in_array($old_link, $found_uris)) {
         // This link was tracked before but is no longer in the content.
-        $files = $this->entityTypeManager->getStorage('file')->loadByProperties(['uri' => $old_link]);
-        $file = $files ? reset($files) : NULL;
+        $file = $this->loadFileByNormalizedUri($old_link);
         if ($file && $updateUsage) {
           $usage = $this->fileUsage->listUsage($file);
           if (!empty($usage['filelink_usage'][$target_type][$entity->id()])) {

@@ -72,9 +72,10 @@ class FileLinkUsageManager {
     // each referencing entity. Older schema versions may not have the matches
     // table, so guard against that scenario.
     if ($this->database->schema()->tableExists('filelink_usage_matches')) {
+      $normalized = $this->normalizer->normalize($file->getFileUri());
       $query = $this->database->select('filelink_usage_matches', 'f')
         ->fields('f', ['entity_type', 'entity_id'])
-        ->condition('link', $file->getFileUri());
+        ->condition('link', $normalized);
 
       foreach ($query->execute() as $row) {
         $type = $row->entity_type;
@@ -228,11 +229,8 @@ class FileLinkUsageManager {
 
     $file_ids = [];
     foreach ($normalized_uris as $uri) {
-      $files = $this->entityTypeManager->getStorage('file')
-        ->loadByProperties(['uri' => $uri]);
-      if ($files) {
-        /** @var \Drupal\file\FileInterface $file */
-        $file = reset($files);
+      $file = $this->loadFileByNormalizedUri($uri);
+      if ($file) {
         if (!$this->usageExists((int) $file->id(), $target_type, $entity_id)) {
           $this->fileUsage->add($file, 'filelink_usage', $target_type, $entity_id);
           $file_ids[] = $file->id();
@@ -282,10 +280,8 @@ class FileLinkUsageManager {
           ->condition('id', $row->id)
           ->execute();
 
-        $files = $this->entityTypeManager->getStorage('file')
-          ->loadByProperties(['uri' => $uri]);
-        if ($files) {
-          $file = reset($files);
+        $file = $this->loadFileByNormalizedUri($uri);
+        if ($file) {
           $usage = $this->fileUsage->listUsage($file);
           if (!empty($usage['filelink_usage'][$target_type][$entity_id])) {
             $count = $usage['filelink_usage'][$target_type][$entity_id];
@@ -439,10 +435,8 @@ class FileLinkUsageManager {
 
     $file_ids = [];
     foreach ($links as $uri) {
-      $file = $this->entityTypeManager->getStorage('file')
-        ->loadByProperties(['uri' => $uri]);
+      $file = $this->loadFileByNormalizedUri($uri);
       if ($file) {
-        $file = reset($file);
         $usage = $this->fileUsage->listUsage($file);
         if (!empty($usage['filelink_usage'][$etype][$eid])) {
           $count = $usage['filelink_usage'][$etype][$eid];
@@ -499,6 +493,26 @@ class FileLinkUsageManager {
       ->countQuery()
       ->execute()
       ->fetchField();
+  }
+
+  /**
+   * Load a managed file by its normalized URI.
+   */
+  public function loadFileByNormalizedUri(string $uri): ?FileInterface {
+    $files = $this->entityTypeManager->getStorage('file')
+      ->loadByProperties(['uri' => $uri]);
+    if ($files) {
+      return reset($files);
+    }
+    $filename = basename($uri);
+    $candidates = $this->entityTypeManager->getStorage('file')
+      ->loadByProperties(['filename' => $filename]);
+    foreach ($candidates as $candidate) {
+      if ($this->normalizer->normalize($candidate->getFileUri()) === $uri) {
+        return $candidate;
+      }
+    }
+    return NULL;
   }
 
 }
