@@ -3,4 +3,4 @@ type: module
 description: Tracks hard‑coded file links and mirrors them in file_usage.  
 core_version_requirement: '^10 || ^11'  
 package: Media  
-version: 1.1.0
+version: v1.1.1
