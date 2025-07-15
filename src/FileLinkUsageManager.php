@@ -11,6 +11,7 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Cache\CacheTagsInvalidatorInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\file\FileInterface;
+use Drupal\filelink_usage\FileLinkUsageFileFinder;
 use Drupal\node\NodeInterface;
 
 /**
@@ -25,6 +26,7 @@ class FileLinkUsageManager {
   protected FileUsageInterface $fileUsage;
   protected EntityTypeManagerInterface $entityTypeManager;
   protected FileLinkUsageNormalizer $normalizer;
+  protected FileLinkUsageFileFinder $fileFinder;
   protected CacheTagsInvalidatorInterface $cacheTagsInvalidator;
   protected bool $statusHasEntityColumns;
   protected bool $matchesHasEntityColumns;
@@ -37,6 +39,7 @@ class FileLinkUsageManager {
     FileUsageInterface $fileUsage,
     EntityTypeManagerInterface $entityTypeManager,
     FileLinkUsageNormalizer $normalizer,
+    FileLinkUsageFileFinder $fileFinder,
     CacheTagsInvalidatorInterface $cacheTagsInvalidator
   ) {
     $this->database            = $database;
@@ -46,6 +49,7 @@ class FileLinkUsageManager {
     $this->fileUsage           = $fileUsage;
     $this->entityTypeManager   = $entityTypeManager;
     $this->normalizer          = $normalizer;
+    $this->fileFinder          = $fileFinder;
     $this->cacheTagsInvalidator = $cacheTagsInvalidator;
 
     // Detect new/legacy schemas on install/upgrade.
@@ -232,7 +236,7 @@ class FileLinkUsageManager {
 
     $file_ids = [];
     foreach ($normalized_uris as $uri) {
-      $file = $this->loadFileByNormalizedUri($uri);
+      $file = $this->fileFinder->loadFileByNormalizedUri($uri);
       if ($file) {
         if (!$this->usageExists((int) $file->id(), $target_type, $entity_id)) {
           $this->fileUsage->add($file, 'filelink_usage', $target_type, $entity_id);
@@ -295,7 +299,7 @@ class FileLinkUsageManager {
           }
         }
         if (!$file) {
-          $file = $this->loadFileByNormalizedUri($uri);
+          $file = $this->fileFinder->loadFileByNormalizedUri($uri);
         }
         if ($file) {
           $usage = $this->fileUsage->listUsage($file);
@@ -463,7 +467,7 @@ class FileLinkUsageManager {
         }
       }
       if (!$file) {
-        $file = $this->loadFileByNormalizedUri($uri);
+        $file = $this->fileFinder->loadFileByNormalizedUri($uri);
       }
       if ($file) {
         $usage = $this->fileUsage->listUsage($file);
@@ -528,20 +532,7 @@ class FileLinkUsageManager {
    * Load a managed file by its normalized URI.
    */
   public function loadFileByNormalizedUri(string $uri): ?FileInterface {
-    $files = $this->entityTypeManager->getStorage('file')
-      ->loadByProperties(['uri' => $uri]);
-    if ($files) {
-      return reset($files);
-    }
-    $filename = basename($uri);
-    $candidates = $this->entityTypeManager->getStorage('file')
-      ->loadByProperties(['filename' => $filename]);
-    foreach ($candidates as $candidate) {
-      if ($this->normalizer->normalize($candidate->getFileUri()) === $uri) {
-        return $candidate;
-      }
-    }
-    return NULL;
+    return $this->fileFinder->loadFileByNormalizedUri($uri);
   }
 
 }

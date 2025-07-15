@@ -12,6 +12,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\filelink_usage\FileLinkUsageNormalizer;
+use Drupal\filelink_usage\FileLinkUsageFileFinder;
 use Drupal\Core\Cache\CacheTagsInvalidatorInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\node\NodeInterface;
@@ -30,10 +31,11 @@ class FileLinkUsageScanner {
   protected TimeInterface $time;
   protected LoggerChannelInterface $logger;
   protected FileLinkUsageNormalizer $normalizer;
+  protected FileLinkUsageFileFinder $fileFinder;
   protected CacheTagsInvalidatorInterface $cacheTagsInvalidator;
   protected bool $statusHasEntityColumns;
 
-  public function __construct(EntityTypeManagerInterface $entityTypeManager, RendererInterface $renderer, Connection $database, FileUsageInterface $fileUsage, ConfigFactoryInterface $configFactory, TimeInterface $time, LoggerChannelInterface $logger, FileLinkUsageNormalizer $normalizer, CacheTagsInvalidatorInterface $cacheTagsInvalidator) {
+  public function __construct(EntityTypeManagerInterface $entityTypeManager, RendererInterface $renderer, Connection $database, FileUsageInterface $fileUsage, ConfigFactoryInterface $configFactory, TimeInterface $time, LoggerChannelInterface $logger, FileLinkUsageNormalizer $normalizer, FileLinkUsageFileFinder $fileFinder, CacheTagsInvalidatorInterface $cacheTagsInvalidator) {
     $this->entityTypeManager = $entityTypeManager;
     $this->renderer = $renderer;
     $this->database = $database;
@@ -42,6 +44,7 @@ class FileLinkUsageScanner {
     $this->time = $time;
     $this->logger = $logger;
     $this->normalizer = $normalizer;
+    $this->fileFinder = $fileFinder;
     $this->cacheTagsInvalidator = $cacheTagsInvalidator;
     $this->statusHasEntityColumns = $this->database->schema()
       ->fieldExists('filelink_usage_scan_status', 'entity_type');
@@ -84,25 +87,6 @@ class FileLinkUsageScanner {
     $this->scan(['node' => [$node->id()]]);
   }
 
-  /**
-   * Load a managed file by its normalized URI.
-   */
-  private function loadFileByNormalizedUri(string $uri): ?FileInterface {
-    $files = $this->entityTypeManager->getStorage('file')
-      ->loadByProperties(['uri' => $uri]);
-    if ($files) {
-      return reset($files);
-    }
-    $filename = basename($uri);
-    $candidates = $this->entityTypeManager->getStorage('file')
-      ->loadByProperties(['filename' => $filename]);
-    foreach ($candidates as $candidate) {
-      if ($this->normalizer->normalize($candidate->getFileUri()) === $uri) {
-        return $candidate;
-      }
-    }
-    return NULL;
-  }
 
   /**
    * Load a managed file from a stored match record.
@@ -115,7 +99,7 @@ class FileLinkUsageScanner {
         return reset($files);
       }
     }
-    return $this->loadFileByNormalizedUri($link);
+    return $this->fileFinder->loadFileByNormalizedUri($link);
   }
 
   /**
@@ -264,7 +248,7 @@ class FileLinkUsageScanner {
       }
       // Check if there is a managed File entity for this URI.
       $fid = NULL;
-      $file_entity = $this->loadFileByNormalizedUri($file_uri);
+      $file_entity = $this->fileFinder->loadFileByNormalizedUri($file_uri);
       if ($file_entity) {
         $fid = $file_entity->id();
         $found_files[$fid] = $file_entity;
