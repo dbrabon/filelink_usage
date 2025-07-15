@@ -15,8 +15,15 @@
   },
   "require-dev": {
     "drush/drush": "^13.6",
-    "phpunit/phpunit": "^10",
+    "phpunit/phpunit": "^9.6",
     "drupal/core-recommended": "^10",
     "drupal/core-dev": "^10"
+  },
+  "config": {
+    "allow-plugins": {
+      "phpstan/extension-installer": true,
+      "php-http/discovery": true,
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
   }
 }

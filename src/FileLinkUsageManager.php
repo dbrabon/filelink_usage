@@ -210,22 +210,7 @@ class FileLinkUsageManager {
 
     $target_type = $entity_type === 'block_content' ? 'block' : $entity_type;
 
-    if ($table === 'filelink_usage_matches') {
-      $existing = $this->database->select($table, 'f')
-        ->fields('f', ['link'])
-        ->condition('entity_type', $target_type)
-        ->condition('entity_id', $entity_id)
-        ->execute()->fetchCol();
-    }
-    elseif ($entity_type === 'node') {
-      $existing = $this->database->select($table, 'f')
-        ->fields('f', ['link'])
-        ->condition('nid', $entity_id)
-        ->execute()->fetchCol();
-    }
-    else {
-      $existing = [];
-    }
+    $start = $this->time->getRequestTime();
 
     $normalized_uris = [];
     foreach ($uris as $uri) {
@@ -235,68 +220,72 @@ class FileLinkUsageManager {
 
     $file_ids = [];
     foreach ($normalized_uris as $uri) {
-      if (in_array($uri, $existing, TRUE)) {
-        continue;
-      }
       $files = $this->entityTypeManager->getStorage('file')
         ->loadByProperties(['uri' => $uri]);
-      if (!$files) {
-        continue;
+      if ($files) {
+        /** @var \Drupal\file\FileInterface $file */
+        $file = reset($files);
+        if (!$this->usageExists((int) $file->id(), $target_type, $entity_id)) {
+          $this->fileUsage->add($file, 'filelink_usage', $target_type, $entity_id);
+          $file_ids[] = $file->id();
+        }
       }
-      /** @var \Drupal\file\FileInterface $file */
-      $file = reset($files);
-      if (!$this->usageExists((int) $file->id(), $target_type, $entity_id)) {
-        $this->fileUsage->add($file, 'filelink_usage', $target_type, $entity_id);
-        $file_ids[] = $file->id();
-      }
+
       if ($table === 'filelink_usage_matches') {
-        $this->database->insert($table)
-          ->fields([
+        $this->database->merge($table)
+          ->keys([
             'entity_type' => $target_type,
             'entity_id' => $entity_id,
             'link' => $uri,
-            'timestamp' => $this->time->getRequestTime(),
           ])
+          ->fields(['timestamp' => $start])
           ->execute();
       }
       elseif ($entity_type === 'node') {
-        $this->database->insert($table)
-          ->fields([
+        $this->database->merge($table)
+          ->keys([
             'nid' => $entity_id,
             'link' => $uri,
-            'timestamp' => $this->time->getRequestTime(),
           ])
+          ->fields(['timestamp' => $start])
           ->execute();
       }
     }
 
-    $remove = array_diff($existing, $normalized_uris);
-    foreach ($remove as $uri) {
-      if ($table === 'filelink_usage_matches') {
-        $this->database->delete($table)
-          ->condition('entity_type', $target_type)
-          ->condition('entity_id', $entity_id)
-          ->condition('link', $uri)
-          ->execute();
-      }
-      elseif ($entity_type === 'node') {
-        $this->database->delete($table)
-          ->condition('nid', $entity_id)
-          ->condition('link', $uri)
-          ->execute();
-      }
+    $stale_query = NULL;
+    if ($table === 'filelink_usage_matches') {
+      $stale_query = $this->database->select($table, 'f')
+        ->fields('f', ['id', 'link'])
+        ->condition('entity_type', $target_type)
+        ->condition('entity_id', $entity_id)
+        ->condition('timestamp', $start, '<');
+    }
+    elseif ($entity_type === 'node') {
+      $stale_query = $this->database->select($table, 'f')
+        ->fields('f', ['id', 'link'])
+        ->condition('nid', $entity_id)
+        ->condition('timestamp', $start, '<');
+    }
 
-      $files = $this->entityTypeManager->getStorage('file')
-        ->loadByProperties(['uri' => $uri]);
-      if ($files) {
-        $file = reset($files);
-        $usage = $this->fileUsage->listUsage($file);
-        if (!empty($usage['filelink_usage'][$target_type][$entity_id])) {
-          $count = $usage['filelink_usage'][$target_type][$entity_id];
-          while ($count-- > 0) {
-            $this->fileUsage->delete($file, 'filelink_usage', $target_type, $entity_id);
+    if ($stale_query) {
+      foreach ($stale_query->execute() as $row) {
+        $uri = $row->link;
+        $this->database->delete($table)
+          ->condition('id', $row->id)
+          ->execute();
+
+        $files = $this->entityTypeManager->getStorage('file')
+          ->loadByProperties(['uri' => $uri]);
+        if ($files) {
+          $file = reset($files);
+          $usage = $this->fileUsage->listUsage($file);
+          if (!empty($usage['filelink_usage'][$target_type][$entity_id])) {
+            $count = $usage['filelink_usage'][$target_type][$entity_id];
+            while ($count-- > 0) {
+              $this->fileUsage->delete($file, 'filelink_usage', $target_type, $entity_id);
+            }
+            $file_ids[] = $file->id();
           }
-          $file_ids[] = $file->id();
         }
       }
     }
