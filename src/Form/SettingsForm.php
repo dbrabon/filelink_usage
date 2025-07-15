@@ -69,6 +69,14 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('How often cron should scan for file links.'),
     ];
 
+    $form['scan_batch_size'] = [
+      '#type' => 'number',
+      '#title' => $this->t('Scan batch size'),
+      '#default_value' => $config->get('scan_batch_size') ?: 50,
+      '#min' => 1,
+      '#description' => $this->t('Number of entities loaded per batch when scanning.'),
+    ];
+
     $form['actions']['full_scan'] = [
       '#type' => 'submit',
       '#value' => $this->t('Run full scan now'),
@@ -87,6 +95,7 @@ class SettingsForm extends ConfigFormBase {
     $this->configFactory->getEditable('filelink_usage.settings')
       ->set('verbose_logging', $form_state->getValue('verbose_logging'))
       ->set('scan_frequency', $form_state->getValue('scan_frequency'))
+      ->set('scan_batch_size', $form_state->getValue('scan_batch_size'))
       ->save();
 
     parent::submitForm($form, $form_state);

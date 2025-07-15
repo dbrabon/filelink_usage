@@ -1,3 +1,4 @@
 verbose_logging: false
 scan_frequency: yearly
+scan_batch_size: 50
 last_scan: 0

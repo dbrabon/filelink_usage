@@ -219,3 +219,14 @@ function filelink_usage_update_8005() {
   }
   $config->save();
 }
+
+/**
+ * Add scan batch size setting.
+ */
+function filelink_usage_update_8006() {
+  $config = \Drupal::configFactory()->getEditable('filelink_usage.settings');
+  if ($config->get('scan_batch_size') === NULL) {
+    $config->set('scan_batch_size', 50);
+    $config->save();
+  }
+}

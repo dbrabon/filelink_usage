@@ -15,6 +15,9 @@ filelink_usage.settings:
         - weekly
         - monthly
         - yearly
+    scan_batch_size:
+      type: integer
+      label: 'Scan batch size'
     last_scan:
       type: integer
       label: 'Timestamp of last cron scan'
