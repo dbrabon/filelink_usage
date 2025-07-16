@@ -101,6 +101,10 @@ class FileLinkUsageManager {
    * Execute cron scan for entities needing re‑scan.
    */
   public function runCron(): void {
+    // Skip if the module schema has not been installed yet.
+    if (!$this->database->schema()->tableExists('filelink_usage_matches')) {
+      return;
+    }
     $config     = $this->configFactory->getEditable('filelink_usage.settings');
     $frequency  = $config->get('scan_frequency');
     $last_scan  = (int) $config->get('last_scan');
